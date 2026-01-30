@@ -80,4 +80,29 @@ class TeamService {
       throw 'Error updating team: $e';
     }
   }
+
+  // Create a new team with custom colors
+  Future<Team> createTeamWithColors(
+    String name,
+    String coachId,
+    int primaryColor,
+    int secondaryColor,
+  ) async {
+    try {
+      final docRef = _firestore.collection(_collection).doc();
+      final team = Team(
+        id: docRef.id,
+        name: name,
+        coachId: coachId,
+        coachIds: [coachId],
+        primaryColor: primaryColor,
+        secondaryColor: secondaryColor,
+        createdAt: DateTime.now(),
+      );
+      await docRef.set(team.toMap());
+      return team;
+    } catch (e) {
+      throw 'Error creating team: $e';
+    }
+  }
 }

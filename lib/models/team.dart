@@ -1,8 +1,12 @@
+import 'package:flutter/material.dart';
+
 class Team {
   final String id;
   final String name;
-  final String coachId; // The coach who created/owns the team
-  final List<String> coachIds; // Multiple coaches can manage a team
+  final String coachId;
+  final List<String> coachIds;
+  final int primaryColor; // Stored as int, converted to/from Color
+  final int secondaryColor;
   final DateTime createdAt;
 
   Team({
@@ -10,8 +14,14 @@ class Team {
     required this.name,
     required this.coachId,
     this.coachIds = const [],
+    this.primaryColor = 0xFF1976D2, // Default calm blue
+    this.secondaryColor = 0xFFFFFFFF, // Default white
     required this.createdAt,
   });
+
+  // Get Color objects from int values
+  Color get primaryColorObj => Color(primaryColor);
+  Color get secondaryColorObj => Color(secondaryColor);
 
   Map<String, dynamic> toMap() {
     return {
@@ -19,6 +29,8 @@ class Team {
       'name': name,
       'coachId': coachId,
       'coachIds': coachIds,
+      'primaryColor': primaryColor,
+      'secondaryColor': secondaryColor,
       'createdAt': createdAt.toIso8601String(),
     };
   }
@@ -29,6 +41,8 @@ class Team {
       name: map['name'] ?? '',
       coachId: map['coachId'] ?? '',
       coachIds: List<String>.from(map['coachIds'] ?? []),
+      primaryColor: map['primaryColor'] ?? 0xFF1976D2,
+      secondaryColor: map['secondaryColor'] ?? 0xFFFFFFFF,
       createdAt: DateTime.parse(map['createdAt']),
     );
   }
@@ -38,6 +52,8 @@ class Team {
     String? name,
     String? coachId,
     List<String>? coachIds,
+    int? primaryColor,
+    int? secondaryColor,
     DateTime? createdAt,
   }) {
     return Team(
@@ -45,6 +61,8 @@ class Team {
       name: name ?? this.name,
       coachId: coachId ?? this.coachId,
       coachIds: coachIds ?? this.coachIds,
+      primaryColor: primaryColor ?? this.primaryColor,
+      secondaryColor: secondaryColor ?? this.secondaryColor,
       createdAt: createdAt ?? this.createdAt,
     );
   }

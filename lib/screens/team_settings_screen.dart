@@ -2,69 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:flex_color_picker/flex_color_picker.dart';
 import '../models/team.dart';
 import '../services/team_service.dart';
-import '../services/auth_service.dart';
 
-class TeamSetupScreen extends StatefulWidget {
-  const TeamSetupScreen({super.key});
+class TeamSettingsScreen extends StatefulWidget {
+  final Team team;
+
+  const TeamSettingsScreen({super.key, required this.team});
 
   @override
-  State<TeamSetupScreen> createState() => _TeamSetupScreenState();
+  State<TeamSettingsScreen> createState() => _TeamSettingsScreenState();
 }
 
-class _TeamSetupScreenState extends State<TeamSetupScreen> {
+class _TeamSettingsScreenState extends State<TeamSettingsScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _teamNameController = TextEditingController();
+  late TextEditingController _teamNameController;
   final _teamService = TeamService();
-  final _authService = AuthService();
   bool _isLoading = false;
 
-  // Default colors
-  Color _primaryColor = const Color(0xFF1976D2); // Calm blue
-  Color _secondaryColor = const Color(0xFFFFFFFF); // White
+  late Color _primaryColor;
+  late Color _secondaryColor;
 
-  // Preset color schemes
-  final List<Map<String, dynamic>> _colorPresets = [
-    {
-      'name': 'Classic Blue',
-      'primary': Color(0xFF1976D2),
-      'secondary': Color(0xFFFFFFFF),
-    },
-    {
-      'name': 'Navy & Gold',
-      'primary': Color(0xFF001F3F),
-      'secondary': Color(0xFFFFD700),
-    },
-    {
-      'name': 'Crimson & White',
-      'primary': Color(0xFFDC143C),
-      'secondary': Color(0xFFFFFFFF),
-    },
-    {
-      'name': 'Forest Green',
-      'primary': Color(0xFF228B22),
-      'secondary': Color(0xFFFFFFFF),
-    },
-    {
-      'name': 'Purple & Gold',
-      'primary': Color(0xFF4B0082),
-      'secondary': Color(0xFFFFD700),
-    },
-    {
-      'name': 'Orange & Blue',
-      'primary': Color(0xFFFF8C00),
-      'secondary': Color(0xFF4169E1),
-    },
-    {
-      'name': 'Maroon & White',
-      'primary': Color(0xFF800000),
-      'secondary': Color(0xFFFFFFFF),
-    },
-    {
-      'name': 'Teal & Silver',
-      'primary': Color(0xFF008080),
-      'secondary': Color(0xFFC0C0C0),
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _teamNameController = TextEditingController(text: widget.team.name);
+    _primaryColor = widget.team.primaryColorObj;
+    _secondaryColor = widget.team.secondaryColorObj;
+  }
 
   @override
   void dispose() {
@@ -72,24 +35,27 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
     super.dispose();
   }
 
-  Future<void> _createTeam() async {
+  Future<void> _updateTeam() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
 
       try {
-        final user = _authService.currentUser;
-        if (user == null) throw 'No user logged in';
-
-        // Create team with custom colors
-        await _teamService.createTeamWithColors(
-          _teamNameController.text.trim(),
-          user.uid,
-          _primaryColor.value,
-          _secondaryColor.value,
+        final updatedTeam = widget.team.copyWith(
+          name: _teamNameController.text.trim(),
+          primaryColor: _primaryColor.value,
+          secondaryColor: _secondaryColor.value,
         );
 
+        await _teamService.updateTeam(updatedTeam);
+
         if (mounted) {
-          Navigator.of(context).pop(true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Team settings updated!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.of(context).pop(true); // Return true to refresh dashboard
         }
       } catch (e) {
         if (mounted) {
@@ -146,13 +112,11 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
         style: Theme.of(context).textTheme.titleMedium,
       ),
       subheading: Text(
-        isSecondary ? 'Select color shade' : 'Select color shade',
+        'Select color shade',
         style: Theme.of(context).textTheme.titleSmall,
       ),
       wheelSubheading: Text(
-        isSecondary
-            ? 'Selected color and its shades'
-            : 'Selected color and its shades',
+        'Selected color and its shades',
         style: Theme.of(context).textTheme.titleSmall,
       ),
       showMaterialName: true,
@@ -185,7 +149,7 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Your Team')),
+      appBar: AppBar(title: const Text('Team Settings')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Form(
@@ -193,26 +157,16 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(Icons.rowing, size: 80, color: Colors.blue),
-              const SizedBox(height: 24),
               const Text(
-                'Welcome, Coach!',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                'Team Information',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Set up your team with a name and colors',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 40),
               TextFormField(
                 controller: _teamNameController,
                 decoration: const InputDecoration(
                   labelText: 'Team Name',
                   border: OutlineInputBorder(),
-                  hintText: 'e.g., Varsity Crew, Junior Rowing',
                   prefixIcon: Icon(Icons.groups),
                 ),
                 validator: (value) {
@@ -225,7 +179,7 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
               const SizedBox(height: 32),
               const Text(
                 'Team Colors',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
 
@@ -338,62 +292,9 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
                   ),
                 ],
               ),
-
-              const SizedBox(height: 24),
-
-              // Color presets
-              const Text(
-                'Or Choose a Preset',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _colorPresets.map((preset) {
-                  final isSelected =
-                      _primaryColor.value == preset['primary'].value &&
-                      _secondaryColor.value == preset['secondary'].value;
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _primaryColor = preset['primary'];
-                        _secondaryColor = preset['secondary'];
-                      });
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [preset['primary'], preset['secondary']],
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isSelected ? Colors.black : Colors.transparent,
-                          width: 3,
-                        ),
-                      ),
-                      child: Text(
-                        preset['name'],
-                        style: TextStyle(
-                          color: preset['primary'].computeLuminance() > 0.5
-                              ? Colors.black
-                              : Colors.white,
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: _isLoading ? null : _createTeam,
+                onPressed: _isLoading ? null : _updateTeam,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   backgroundColor: _primaryColor,
@@ -401,7 +302,7 @@ class _TeamSetupScreenState extends State<TeamSetupScreen> {
                 child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text(
-                        'Create Team',
+                        'Save Changes',
                         style: TextStyle(fontSize: 18, color: Colors.white),
                       ),
               ),
