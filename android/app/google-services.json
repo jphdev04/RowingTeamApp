@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "837010500969",
+    "project_id": "lineupgo-7e5ae",
+    "storage_bucket": "lineupgo-7e5ae.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:837010500969:android:0a8e3bb9a085f68c4321f8",
+        "android_client_info": {
+          "package_name": "com.example.hello_rowing"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDWlEuE726B9Xoiu6CCDwTXjD6F5coKkd4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
