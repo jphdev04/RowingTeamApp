@@ -65,6 +65,7 @@ class TeamService {
 
   // Get all teams in an organization
   Stream<List<Team>> getOrganizationTeams(String organizationId) {
+    print('DEBUG TeamService: Querying teams for org: $organizationId');
     return _firestore
         .collection(_collection)
         .where('organizationId', isEqualTo: organizationId)
@@ -72,6 +73,10 @@ class TeamService {
         .orderBy('name')
         .snapshots()
         .map((snapshot) {
+          print('DEBUG TeamService: Found ${snapshot.docs.length} teams');
+          for (var doc in snapshot.docs) {
+            print('DEBUG TeamService: Team doc: ${doc.data()}');
+          }
           return snapshot.docs.map((doc) => Team.fromMap(doc.data())).toList();
         });
   }

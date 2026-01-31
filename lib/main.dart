@@ -7,6 +7,10 @@ import 'models/user.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'services/membership_service.dart';
+import 'models/membership.dart';
+import 'screens/team_selector_screen.dart';
+import 'screens/organization_dashboard_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +67,7 @@ class AuthWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     final authService = AuthService();
     final userService = UserService();
+    final membershipService = MembershipService();
 
     return StreamBuilder(
       stream: authService.authStateChanges,
@@ -74,7 +79,6 @@ class AuthWrapper extends StatelessWidget {
         }
 
         if (authSnapshot.hasData) {
-          // User is logged in - check if they have a profile and memberships
           final userId = authSnapshot.data!.uid;
 
           return FutureBuilder(
@@ -89,18 +93,48 @@ class AuthWrapper extends StatelessWidget {
               final user = userSnapshot.data;
 
               if (user == null) {
-                // No user profile - shouldn't happen, but handle it
                 return const LoginScreen();
               }
 
               // Check if user has joined any organizations
               if (user.currentOrganizationId == null) {
-                // No organizations - send to onboarding
                 return OnboardingScreen(user: user);
               }
 
-              // Has organizations - go to dashboard
-              return const DashboardScreen();
+              // User has memberships - check how many
+              return StreamBuilder<List<Membership>>(
+                stream: membershipService.getUserMemberships(userId),
+                builder: (context, membershipsSnapshot) {
+                  if (membershipsSnapshot.connectionState ==
+                      ConnectionState.waiting) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+
+                  final memberships = membershipsSnapshot.data ?? [];
+
+                  if (memberships.isEmpty) {
+                    // No memberships (shouldn't happen, but handle it)
+                    return OnboardingScreen(user: user);
+                  }
+
+                  // Find current membership
+                  final currentMembership = memberships.firstWhere(
+                    (m) => m.id == user.currentMembershipId,
+                    orElse: () => memberships.first,
+                  );
+
+                  // Check if this is an admin with no team (organization view)
+                  if (currentMembership.role == MembershipRole.admin &&
+                      currentMembership.teamId == null) {
+                    return const OrganizationDashboardScreen();
+                  }
+
+                  // Regular team view
+                  return const DashboardScreen();
+                },
+              );
             },
           );
         }

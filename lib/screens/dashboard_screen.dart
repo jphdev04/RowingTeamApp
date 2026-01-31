@@ -10,6 +10,7 @@ import '../models/organization.dart';
 import '../models/team.dart';
 import 'settings_screen.dart';
 import 'equipment_screen.dart';
+import 'team_selector_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -257,16 +258,32 @@ class _DashboardContent extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Role switcher dropdown
+                        // Team switcher button (if multiple memberships)
                         if (memberships.length > 1)
-                          Expanded(
-                            child: _RoleSwitcher(
-                              memberships: memberships,
-                              currentMembership: currentMembership,
-                              onChanged: onMembershipChanged,
-                              textColor: primaryColor.computeLuminance() > 0.5
+                          TextButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(
+                                  builder: (context) => TeamSelectorScreen(
+                                    user: user,
+                                    memberships: memberships,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: Icon(
+                              Icons.swap_horiz,
+                              color: primaryColor.computeLuminance() > 0.5
                                   ? Colors.black
                                   : Colors.white,
+                            ),
+                            label: Text(
+                              'Switch',
+                              style: TextStyle(
+                                color: primaryColor.computeLuminance() > 0.5
+                                    ? Colors.black
+                                    : Colors.white,
+                              ),
                             ),
                           )
                         else
