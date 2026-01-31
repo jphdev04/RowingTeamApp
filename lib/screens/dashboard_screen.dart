@@ -8,6 +8,7 @@ import 'team_setup_screen.dart';
 import 'roster_screen.dart';
 import 'settings_screen.dart';
 import 'login_screen.dart';
+import 'equipment_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -255,7 +256,8 @@ class _AthleteDashboard extends StatelessWidget {
 }
 
 // Main Dashboard Scaffold
-class _DashboardScaffold extends StatelessWidget {
+// Main Dashboard Scaffold
+class _DashboardScaffold extends StatefulWidget {
   final Athlete athlete;
   final Team? team;
   final bool isCoach;
@@ -266,28 +268,56 @@ class _DashboardScaffold extends StatelessWidget {
     required this.isCoach,
   });
 
-  String _getDisplayName() {
-    if (athlete.role == 'coach') {
-      return 'Coach ${athlete.name}';
+  @override
+  State<_DashboardScaffold> createState() => _DashboardScaffoldState();
+}
+
+class _DashboardScaffoldState extends State<_DashboardScaffold> {
+  late Team? currentTeam;
+
+  @override
+  void initState() {
+    super.initState();
+    currentTeam = widget.team;
+  }
+
+  // Refresh team data
+  Future<void> _refreshTeam() async {
+    if (currentTeam != null) {
+      final teamService = TeamService();
+      final updatedTeam = await teamService.getTeam(currentTeam!.id);
+      if (mounted) {
+        setState(() {
+          currentTeam = updatedTeam;
+        });
+      }
     }
-    return athlete.name;
+  }
+
+  String _getDisplayName() {
+    if (widget.athlete.role == 'coach') {
+      return 'Coach ${widget.athlete.name}';
+    }
+    return widget.athlete.name;
   }
 
   @override
   Widget build(BuildContext context) {
     // Use team colors or defaults
-    final primaryColor = team?.primaryColorObj ?? const Color(0xFF1976D2);
-    final secondaryColor = team?.secondaryColorObj ?? const Color(0xFFFFFFFF);
+    final primaryColor =
+        currentTeam?.primaryColorObj ?? const Color(0xFF1976D2);
+    final secondaryColor =
+        currentTeam?.secondaryColorObj ?? const Color(0xFFFFFFFF);
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: SafeArea(
-        top: false, // Allow content to go under status bar
+        top: false,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Welcome header with boathouse icon - now extends to top
+              // Welcome header with boathouse icon
               Container(
                 width: double.infinity,
                 padding: EdgeInsets.fromLTRB(
@@ -321,15 +351,19 @@ class _DashboardScaffold extends StatelessWidget {
                                 ? Colors.black
                                 : Colors.white,
                           ),
-                          onPressed: () {
-                            Navigator.of(context).push(
+                          onPressed: () async {
+                            final result = await Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (context) => SettingsScreen(
-                                  athlete: athlete,
-                                  team: team,
+                                  athlete: widget.athlete,
+                                  team: currentTeam,
                                 ),
                               ),
                             );
+                            // Refresh team if settings were updated
+                            if (result == true) {
+                              await _refreshTeam();
+                            }
                           },
                         ),
                       ],
@@ -365,10 +399,10 @@ class _DashboardScaffold extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    if (team != null) ...[
+                    if (currentTeam != null) ...[
                       const SizedBox(height: 8),
                       Text(
-                        team!.name,
+                        currentTeam!.name,
                         style: TextStyle(
                           color: primaryColor.computeLuminance() > 0.5
                               ? Colors.black54
@@ -398,7 +432,7 @@ class _DashboardScaffold extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
 
-                    if (isCoach) ...[
+                    if (widget.isCoach) ...[
                       // Coach view
                       Row(
                         children: [
@@ -412,8 +446,8 @@ class _DashboardScaffold extends StatelessWidget {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (context) => RosterScreen(
-                                      teamId: team!.id,
-                                      team: team,
+                                      teamId: currentTeam!.id,
+                                      team: currentTeam,
                                     ),
                                   ),
                                 );
@@ -428,10 +462,12 @@ class _DashboardScaffold extends StatelessWidget {
                               icon: Icons.rowing,
                               color: primaryColor,
                               onTap: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Equipment page coming soon!',
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => EquipmentScreen(
+                                      teamId: currentTeam!.id,
+                                      team: currentTeam,
+                                      athlete: widget.athlete,
                                     ),
                                   ),
                                 );
@@ -450,15 +486,19 @@ class _DashboardScaffold extends StatelessWidget {
                               subtitle: 'View your stats',
                               icon: Icons.person,
                               color: primaryColor,
-                              onTap: () {
-                                Navigator.of(context).push(
+                              onTap: () async {
+                                final result = await Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (context) => SettingsScreen(
-                                      athlete: athlete,
-                                      team: team,
+                                      athlete: widget.athlete,
+                                      team: currentTeam,
                                     ),
                                   ),
                                 );
+                                // Refresh if profile was updated
+                                if (result == true) {
+                                  await _refreshTeam();
+                                }
                               },
                             ),
                           ),
@@ -470,10 +510,12 @@ class _DashboardScaffold extends StatelessWidget {
                               icon: Icons.warning,
                               color: primaryColor,
                               onTap: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Equipment reporting coming soon!',
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => EquipmentScreen(
+                                      teamId: currentTeam!.id,
+                                      team: currentTeam,
+                                      athlete: widget.athlete,
                                     ),
                                   ),
                                 );
@@ -489,7 +531,7 @@ class _DashboardScaffold extends StatelessWidget {
                         Expanded(
                           child: _DashboardCard(
                             title: 'Lineups',
-                            subtitle: isCoach
+                            subtitle: widget.isCoach
                                 ? 'Create boat lineups'
                                 : 'View lineups',
                             icon: Icons.sports,
@@ -507,7 +549,7 @@ class _DashboardScaffold extends StatelessWidget {
                         Expanded(
                           child: _DashboardCard(
                             title: 'Workouts',
-                            subtitle: isCoach
+                            subtitle: widget.isCoach
                                 ? 'Manage workouts'
                                 : 'View workouts',
                             icon: Icons.fitness_center,
@@ -529,7 +571,7 @@ class _DashboardScaffold extends StatelessWidget {
                         Expanded(
                           child: _DashboardCard(
                             title: 'Schedule',
-                            subtitle: isCoach
+                            subtitle: widget.isCoach
                                 ? 'Manage schedule'
                                 : 'View schedule',
                             icon: Icons.calendar_today,
@@ -547,7 +589,9 @@ class _DashboardScaffold extends StatelessWidget {
                         Expanded(
                           child: _DashboardCard(
                             title: 'Announcements',
-                            subtitle: isCoach ? 'Post updates' : 'View updates',
+                            subtitle: widget.isCoach
+                                ? 'Post updates'
+                                : 'View updates',
                             icon: Icons.announcement,
                             color: primaryColor,
                             onTap: () {

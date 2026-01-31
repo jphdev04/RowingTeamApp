@@ -6,6 +6,7 @@ import '../models/team.dart';
 import '../widgets/team_header.dart';
 import 'team_settings_screen.dart';
 import 'login_screen.dart';
+import 'edit_profile_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final Athlete? athlete;
@@ -135,8 +136,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 TeamSettingsScreen(team: widget.team!),
                           ),
                         );
+                        // If team was updated, pop back to dashboard with result
                         if (result == true && mounted) {
-                          setState(() {});
+                          Navigator.of(
+                            context,
+                          ).pop(true); // Pass result back to dashboard
                         }
                       },
                     ),
@@ -159,10 +163,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   leading: const Icon(Icons.person),
                   title: const Text('Edit Profile'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Coming soon!')),
-                    );
+                  onTap: () async {
+                    if (widget.athlete != null) {
+                      final result = await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => EditProfileScreen(
+                            athlete: widget.athlete!,
+                            team: widget.team,
+                          ),
+                        ),
+                      );
+                      // Refresh if profile was updated
+                      if (result == true && mounted) {
+                        setState(() {});
+                      }
+                    }
                   },
                 ),
                 const Divider(),

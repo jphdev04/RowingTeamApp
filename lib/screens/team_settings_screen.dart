@@ -49,13 +49,7 @@ class _TeamSettingsScreenState extends State<TeamSettingsScreen> {
         await _teamService.updateTeam(updatedTeam);
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Team settings updated!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.of(context).pop(true); // Return true to refresh dashboard
+          Navigator.of(context).pop(true);
         }
       } catch (e) {
         if (mounted) {
