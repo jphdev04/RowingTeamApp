@@ -324,7 +324,10 @@ class _DashboardScaffold extends StatelessWidget {
                           onPressed: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (context) => const SettingsScreen(),
+                                builder: (context) => SettingsScreen(
+                                  athlete: athlete,
+                                  team: team,
+                                ),
                               ),
                             );
                           },
@@ -450,8 +453,10 @@ class _DashboardScaffold extends StatelessWidget {
                               onTap: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (context) =>
-                                        const SettingsScreen(),
+                                    builder: (context) => SettingsScreen(
+                                      athlete: athlete,
+                                      team: team,
+                                    ),
                                   ),
                                 );
                               },
