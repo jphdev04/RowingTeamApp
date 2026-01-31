@@ -24,7 +24,7 @@ enum EquipmentStatus { available, inUse, damaged, maintenance }
 
 class Equipment {
   final String id;
-  final String teamId;
+  final String organizationId; // NEW - equipment belongs to org, not team
   final EquipmentType type;
   final String name; // e.g., "Resolute", "Launch 1", "Cox Box A"
   final EquipmentStatus status;
@@ -54,7 +54,7 @@ class Equipment {
 
   Equipment({
     required this.id,
-    required this.teamId,
+    required this.organizationId,
     required this.type,
     required this.name,
     this.status = EquipmentStatus.available,
@@ -110,7 +110,7 @@ class Equipment {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'teamId': teamId,
+      'organizationId': organizationId,
       'type': type.name,
       'name': name,
       'status': status.name,
@@ -135,7 +135,7 @@ class Equipment {
   factory Equipment.fromMap(Map<String, dynamic> map) {
     return Equipment(
       id: map['id'] ?? '',
-      teamId: map['teamId'] ?? '',
+      organizationId: map['organizationId'] ?? '',
       type: EquipmentType.values.firstWhere(
         (e) => e.name == map['type'],
         orElse: () => EquipmentType.shell,
@@ -177,7 +177,7 @@ class Equipment {
 
   Equipment copyWith({
     String? id,
-    String? teamId,
+    String? organizationId,
     EquipmentType? type,
     String? name,
     EquipmentStatus? status,
@@ -199,7 +199,7 @@ class Equipment {
   }) {
     return Equipment(
       id: id ?? this.id,
-      teamId: teamId ?? this.teamId,
+      organizationId: organizationId ?? this.organizationId,
       type: type ?? this.type,
       name: name ?? this.name,
       status: status ?? this.status,

@@ -4,20 +4,22 @@ import '../models/athlete.dart';
 import '../models/equipment.dart';
 import '../services/equipment_service.dart';
 import '../widgets/team_header.dart';
+import '../models/membership.dart';
 
 class EquipmentScreen extends StatelessWidget {
-  final String teamId;
+  final String organizationId;
   final Team? team;
-  final Athlete athlete;
+  final Membership? currentMembership;
 
   const EquipmentScreen({
     super.key,
-    required this.teamId,
+    required this.organizationId,
     this.team,
-    required this.athlete,
+    this.currentMembership,
   });
-
-  bool get isCoach => athlete.role == 'coach';
+  bool get isCoach =>
+      currentMembership?.role == MembershipRole.coach ||
+      currentMembership?.role == MembershipRole.admin;
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +49,7 @@ class EquipmentScreen extends StatelessWidget {
           ),
           Expanded(
             child: StreamBuilder<List<Equipment>>(
-              stream: equipmentService.getEquipmentByTeam(teamId),
+              stream: equipmentService.getEquipmentByTeam(organizationId),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -107,9 +109,9 @@ class EquipmentScreen extends StatelessWidget {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (context) => EquipmentListScreen(
-                                      teamId: teamId,
+                                      organizationId: organizationId,
                                       team: team,
-                                      athlete: athlete,
+                                      currentMembership: currentMembership,
                                       equipmentType: EquipmentType.shell,
                                       title: 'Shells',
                                     ),
@@ -129,9 +131,9 @@ class EquipmentScreen extends StatelessWidget {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (context) => EquipmentListScreen(
-                                      teamId: teamId,
+                                      organizationId: organizationId,
                                       team: team,
-                                      athlete: athlete,
+                                      currentMembership: currentMembership,
                                       equipmentType: EquipmentType.launch,
                                       title: 'Coaching Launches',
                                     ),
@@ -156,9 +158,9 @@ class EquipmentScreen extends StatelessWidget {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (context) => EquipmentListScreen(
-                                      teamId: teamId,
+                                      organizationId: organizationId,
                                       team: team,
-                                      athlete: athlete,
+                                      currentMembership: currentMembership,
                                       equipmentType: EquipmentType.coxbox,
                                       title: 'Cox Boxes',
                                     ),
@@ -178,9 +180,9 @@ class EquipmentScreen extends StatelessWidget {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (context) => EquipmentListScreen(
-                                      teamId: teamId,
+                                      organizationId: organizationId,
                                       team: team,
-                                      athlete: athlete,
+                                      currentMembership: currentMembership,
                                       equipmentType: EquipmentType.oars,
                                       title: 'Oars',
                                     ),
@@ -205,9 +207,9 @@ class EquipmentScreen extends StatelessWidget {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (context) => EquipmentListScreen(
-                                      teamId: teamId,
+                                      organizationId: organizationId,
                                       team: team,
-                                      athlete: athlete,
+                                      currentMembership: currentMembership,
                                       equipmentType: EquipmentType.erg,
                                       title: 'Ergs',
                                     ),
@@ -497,17 +499,17 @@ class _StatRow extends StatelessWidget {
 
 // Placeholder for the equipment list screen (we'll build this next)
 class EquipmentListScreen extends StatelessWidget {
-  final String teamId;
+  final String organizationId; // Changed from teamId
   final Team? team;
-  final Athlete athlete;
+  final Membership? currentMembership; // Changed from Athlete athlete
   final EquipmentType equipmentType;
   final String title;
 
   const EquipmentListScreen({
     super.key,
-    required this.teamId,
+    required this.organizationId,
     this.team,
-    required this.athlete,
+    this.currentMembership,
     required this.equipmentType,
     required this.title,
   });

@@ -5,15 +5,27 @@ class TeamService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String _collection = 'teams';
 
-  // Create a new team
-  Future<Team> createTeam(String name, String coachId) async {
+  // Create team with colors
+  Future<Team> createTeamWithColors(
+    String organizationId,
+    String name,
+    String headCoachId,
+    int primaryColor,
+    int secondaryColor, {
+    String? description,
+    String? season,
+  }) async {
     try {
       final docRef = _firestore.collection(_collection).doc();
       final team = Team(
         id: docRef.id,
+        organizationId: organizationId,
         name: name,
-        coachId: coachId,
-        coachIds: [coachId],
+        description: description,
+        headCoachIds: [headCoachId],
+        primaryColor: primaryColor,
+        secondaryColor: secondaryColor,
+        season: season,
         createdAt: DateTime.now(),
       );
       await docRef.set(team.toMap());
@@ -39,25 +51,7 @@ class TeamService {
     }
   }
 
-  // Get team by coach ID
-  Future<Team?> getTeamByCoachId(String coachId) async {
-    try {
-      QuerySnapshot snapshot = await _firestore
-          .collection(_collection)
-          .where('coachId', isEqualTo: coachId)
-          .limit(1)
-          .get();
-
-      if (snapshot.docs.isNotEmpty) {
-        return Team.fromMap(snapshot.docs.first.data() as Map<String, dynamic>);
-      }
-      return null;
-    } catch (e) {
-      throw 'Error getting team by coach: $e';
-    }
-  }
-
-  // Get team stream (real-time updates)
+  // Get team stream
   Stream<Team?> getTeamStream(String teamId) {
     return _firestore.collection(_collection).doc(teamId).snapshots().map((
       doc,
@@ -67,6 +61,32 @@ class TeamService {
       }
       return null;
     });
+  }
+
+  // Get all teams in an organization
+  Stream<List<Team>> getOrganizationTeams(String organizationId) {
+    return _firestore
+        .collection(_collection)
+        .where('organizationId', isEqualTo: organizationId)
+        .where('isActive', isEqualTo: true)
+        .orderBy('name')
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) => Team.fromMap(doc.data())).toList();
+        });
+  }
+
+  // Get teams where user is head coach
+  Stream<List<Team>> getTeamsByHeadCoach(String userId) {
+    return _firestore
+        .collection(_collection)
+        .where('headCoachIds', arrayContains: userId)
+        .where('isActive', isEqualTo: true)
+        .orderBy('name')
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) => Team.fromMap(doc.data())).toList();
+        });
   }
 
   // Update team
@@ -81,28 +101,45 @@ class TeamService {
     }
   }
 
-  // Create a new team with custom colors
-  Future<Team> createTeamWithColors(
-    String name,
-    String coachId,
-    int primaryColor,
-    int secondaryColor,
-  ) async {
+  // Add head coach
+  Future<void> addHeadCoach(String teamId, String userId) async {
     try {
-      final docRef = _firestore.collection(_collection).doc();
-      final team = Team(
-        id: docRef.id,
-        name: name,
-        coachId: coachId,
-        coachIds: [coachId],
-        primaryColor: primaryColor,
-        secondaryColor: secondaryColor,
-        createdAt: DateTime.now(),
-      );
-      await docRef.set(team.toMap());
-      return team;
+      await _firestore.collection(_collection).doc(teamId).update({
+        'headCoachIds': FieldValue.arrayUnion([userId]),
+      });
     } catch (e) {
-      throw 'Error creating team: $e';
+      throw 'Error adding head coach: $e';
+    }
+  }
+
+  // Remove head coach
+  Future<void> removeHeadCoach(String teamId, String userId) async {
+    try {
+      await _firestore.collection(_collection).doc(teamId).update({
+        'headCoachIds': FieldValue.arrayRemove([userId]),
+      });
+    } catch (e) {
+      throw 'Error removing head coach: $e';
+    }
+  }
+
+  // Deactivate team (soft delete)
+  Future<void> deactivateTeam(String teamId) async {
+    try {
+      await _firestore.collection(_collection).doc(teamId).update({
+        'isActive': false,
+      });
+    } catch (e) {
+      throw 'Error deactivating team: $e';
+    }
+  }
+
+  // Delete team (hard delete)
+  Future<void> deleteTeam(String teamId) async {
+    try {
+      await _firestore.collection(_collection).doc(teamId).delete();
+    } catch (e) {
+      throw 'Error deleting team: $e';
     }
   }
 }

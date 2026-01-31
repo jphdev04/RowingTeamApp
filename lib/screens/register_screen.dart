@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../services/athlete_service.dart';
-import '../models/athlete.dart';
-import 'dashboard_screen.dart';
+import '../services/user_service.dart';
+import '../models/user.dart';
+import 'onboarding_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -18,11 +18,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
-  final _athleteService = AthleteService();
+  final _userService = UserService();
 
-  String _selectedRole = 'coach';
   bool _isLoading = false;
-  bool _linkingExistingProfile = false;
 
   @override
   void dispose() {
@@ -38,56 +36,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() => _isLoading = true);
 
       try {
-        final email = _emailController.text.trim();
-
-        // Check if an athlete profile exists with this email
-        final existingProfiles = await _athleteService.getAthleteByEmail(email);
-
-        // Create auth account
+        // Create Firebase Auth account
         final userCredential = await _authService.register(
-          email,
+          _emailController.text.trim(),
           _passwordController.text,
         );
 
         if (userCredential != null) {
-          final userId = userCredential.user!.uid;
+          // Create user profile in Firestore
+          final user = AppUser(
+            id: userCredential.user!.uid,
+            name: _nameController.text.trim(),
+            email: _emailController.text.trim(),
+            createdAt: DateTime.now(),
+          );
 
-          if (existingProfiles != null) {
-            // Link existing profile to this auth account
-            setState(() => _linkingExistingProfile = true);
-
-            final updatedAthlete = existingProfiles.copyWith(
-              id: userId, // Update ID to match auth UID
-            );
-
-            // Delete old profile and create new one with auth UID
-            await _athleteService.deleteAthlete(existingProfiles.id);
-            await _athleteService.addAthlete(updatedAthlete);
-
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Profile linked successfully!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            }
-          } else {
-            // Create new athlete profile (for coaches registering)
-            final athlete = Athlete(
-              id: userId,
-              name: _nameController.text.trim(),
-              email: email,
-              role: _selectedRole,
-              createdAt: DateTime.now(),
-            );
-
-            await _athleteService.addAthlete(athlete);
-          }
+          await _userService.createUser(user);
 
           if (mounted) {
+            // Navigate to onboarding (join/create org)
             Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (context) => const DashboardScreen()),
+              MaterialPageRoute(
+                builder: (context) => OnboardingScreen(user: user),
+              ),
             );
           }
         }
@@ -99,10 +70,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       } finally {
         if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _linkingExistingProfile = false;
-          });
+          setState(() => _isLoading = false);
         }
       }
     }
@@ -111,7 +79,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Register')),
+      appBar: AppBar(title: const Text('Create Account')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -120,23 +88,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(height: 40),
+              const Icon(Icons.rowing, size: 80, color: Colors.blue),
+              const SizedBox(height: 24),
               const Text(
-                'Create Account',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                'Join The Boathouse',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               const Text(
-                'If your coach added you to the roster, use the same email to link your profile',
+                'Your all-in-one rowing team management app',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 40),
               TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Full Name',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your name';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
                 controller: _emailController,
                 decoration: const InputDecoration(
                   labelText: 'Email',
                   border: OutlineInputBorder(),
-                  helperText: 'Use the email your coach provided',
+                  prefixIcon: Icon(Icons.email),
                 ),
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
@@ -151,45 +136,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  border: OutlineInputBorder(),
-                  helperText: 'Only needed if you\'re a coach',
-                ),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _selectedRole,
-                decoration: const InputDecoration(
-                  labelText: 'I am a...',
-                  border: OutlineInputBorder(),
-                  helperText: 'Select coach only if creating a new team',
-                ),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'coach',
-                    child: Text('Coach (creating team)'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'coxswain',
-                    child: Text('Coxswain (joining team)'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'rower',
-                    child: Text('Rower (joining team)'),
-                  ),
-                ],
-                onChanged: (value) {
-                  setState(() => _selectedRole = value!);
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
                 controller: _passwordController,
                 decoration: const InputDecoration(
                   labelText: 'Password',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
                 ),
                 obscureText: true,
                 validator: (value) {
@@ -208,6 +159,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Confirm Password',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock_outline),
                 ),
                 obscureText: true,
                 validator: (value) {
@@ -225,19 +177,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _register,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
                   child: _isLoading
-                      ? Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const CircularProgressIndicator(),
-                            if (_linkingExistingProfile) ...[
-                              const SizedBox(height: 8),
-                              const Text('Linking profile...'),
-                            ],
-                          ],
-                        )
-                      : const Text('Register'),
+                      ? const CircularProgressIndicator()
+                      : const Text(
+                          'Create Account',
+                          style: TextStyle(fontSize: 16),
+                        ),
                 ),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Already have an account? Sign in'),
               ),
             ],
           ),

@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
-import '../models/athlete.dart';
+import '../models/user.dart';
+import '../models/membership.dart';
 import '../models/team.dart';
-import '../services/athlete_service.dart';
+import '../services/user_service.dart';
+import '../services/membership_service.dart';
 import '../widgets/team_header.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  final Athlete athlete;
+  final AppUser user;
+  final Membership membership;
   final Team? team;
 
-  const EditProfileScreen({super.key, required this.athlete, this.team});
+  const EditProfileScreen({
+    super.key,
+    required this.user,
+    required this.membership,
+    this.team,
+  });
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -17,69 +25,97 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emergencyContactController = TextEditingController();
+  final _emergencyPhoneController = TextEditingController();
   final _injuryDetailsController = TextEditingController();
-  final _athleteService = AthleteService();
+  final _userService = UserService();
+  final _membershipService = MembershipService();
 
   String? _selectedGender;
   String? _selectedSide;
   String? _selectedWeightClass;
-  bool _isInjured = false;
+  bool _hasInjury = false;
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    // Pre-fill with existing data
-    _nameController.text = widget.athlete.name;
-    _selectedGender = widget.athlete.gender;
-    _selectedSide = widget.athlete.side;
-    _selectedWeightClass = widget.athlete.weightClass;
-    _isInjured = widget.athlete.isInjured;
-    _injuryDetailsController.text = widget.athlete.injuryDetails ?? '';
+    _nameController.text = widget.user.name;
+    _phoneController.text = widget.user.phone ?? '';
+    _emergencyContactController.text = widget.user.emergencyContact ?? '';
+    _emergencyPhoneController.text = widget.user.emergencyPhone ?? '';
+    _selectedGender = widget.user.gender;
+    _hasInjury = widget.user.hasInjury;
+    _injuryDetailsController.text = widget.user.injuryDetails ?? '';
+
+    // Membership-specific fields
+    _selectedSide = widget.membership.side;
+    _selectedWeightClass = widget.membership.weightClass;
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _phoneController.dispose();
+    _emergencyContactController.dispose();
+    _emergencyPhoneController.dispose();
     _injuryDetailsController.dispose();
     super.dispose();
   }
 
-  bool get _isRower => widget.athlete.role == 'rower';
+  bool get _isRower => widget.membership.role == MembershipRole.rower;
+  bool get _isCoach => widget.membership.role == MembershipRole.coach;
+  bool get _isAdmin => widget.membership.role == MembershipRole.admin;
+
+  List<String> _getWeightClassOptions() {
+    if (_selectedGender == null) return [];
+
+    if (_selectedGender == 'male') {
+      return ['Lightweight (<160 lbs)', 'Heavyweight (160+ lbs)', 'Openweight'];
+    } else {
+      return ['Lightweight (<130 lbs)', 'Heavyweight (130+ lbs)', 'Openweight'];
+    }
+  }
 
   Future<void> _saveProfile() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
 
       try {
-        final updatedAthlete = widget.athlete.copyWith(
+        // Update user data
+        final updatedUser = widget.user.copyWith(
           name: _nameController.text.trim(),
-          gender: widget.athlete.role != 'coach'
-              ? _selectedGender
-              : widget.athlete.gender,
-          side: _isRower ? _selectedSide : null,
-          weightClass: _isRower ? _selectedWeightClass : null,
-          // Only update injury status for non-coaches
-          isInjured: widget.athlete.role != 'coach'
-              ? _isInjured
-              : widget.athlete.isInjured,
-          injuryDetails:
-              widget.athlete.role != 'coach' &&
-                  _isInjured &&
-                  _injuryDetailsController.text.isNotEmpty
-              ? _injuryDetailsController.text.trim()
-              : widget.athlete.injuryDetails,
+          phone: _phoneController.text.trim().isNotEmpty
+              ? _phoneController.text.trim()
+              : null,
+          gender: _isCoach || _isAdmin ? widget.user.gender : _selectedGender,
+          emergencyContact: _emergencyContactController.text.trim().isNotEmpty
+              ? _emergencyContactController.text.trim()
+              : null,
+          emergencyPhone: _emergencyPhoneController.text.trim().isNotEmpty
+              ? _emergencyPhoneController.text.trim()
+              : null,
+          hasInjury: _isCoach || _isAdmin ? false : _hasInjury,
+          injuryDetails: _isCoach || _isAdmin
+              ? null
+              : (_hasInjury && _injuryDetailsController.text.trim().isNotEmpty
+                    ? _injuryDetailsController.text.trim()
+                    : null),
         );
 
-        await _athleteService.updateAthlete(updatedAthlete);
+        await _userService.updateUser(updatedUser);
+
+        // Update membership-specific fields (for rowers)
+        if (_isRower) {
+          final updatedMembership = widget.membership.copyWith(
+            side: _selectedSide,
+            weightClass: _selectedWeightClass,
+          );
+          await _membershipService.updateMembership(updatedMembership);
+        }
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Profile updated successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
           Navigator.of(context).pop(true);
         }
       } catch (e) {
@@ -136,8 +172,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             radius: 60,
                             backgroundColor: Colors.blue,
                             child: Text(
-                              widget.athlete.name.isNotEmpty
-                                  ? widget.athlete.name[0].toUpperCase()
+                              widget.user.name.isNotEmpty
+                                  ? widget.user.name[0].toUpperCase()
                                   : '?',
                               style: const TextStyle(
                                 fontSize: 48,
@@ -193,9 +229,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Email (read-only)
                     TextFormField(
-                      initialValue: widget.athlete.email,
+                      initialValue: widget.user.email,
                       decoration: const InputDecoration(
                         labelText: 'Email',
                         border: OutlineInputBorder(),
@@ -205,20 +240,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Role (read-only)
                     TextFormField(
-                      initialValue: widget.athlete.role.toUpperCase(),
+                      controller: _phoneController,
                       decoration: const InputDecoration(
-                        labelText: 'Role',
+                        labelText: 'Phone Number (Optional)',
                         border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.badge),
-                        enabled: false,
+                        prefixIcon: Icon(Icons.phone),
                       ),
+                      keyboardType: TextInputType.phone,
                     ),
                     const SizedBox(height: 16),
 
-                    if (widget.athlete.role != 'coach') ...[
-                      const SizedBox(height: 16),
+                    // Gender (not for coaches/admins)
+                    if (!_isCoach && !_isAdmin) ...[
                       DropdownButtonFormField<String>(
                         value: _selectedGender,
                         decoration: const InputDecoration(
@@ -236,18 +270,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         onChanged: (value) {
                           setState(() {
                             _selectedGender = value;
-                            // Reset weight class when gender changes
                             if (_isRower) {
                               _selectedWeightClass = null;
                             }
                           });
                         },
                       ),
+                      const SizedBox(height: 16),
                     ],
 
                     // Rower-specific fields
                     if (_isRower) ...[
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 16),
                       const Text(
                         'Rowing Details',
                         style: TextStyle(
@@ -286,7 +320,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.monitor_weight),
                           ),
-                          items: Athlete.getWeightClassOptions(_selectedGender)
+                          items: _getWeightClassOptions()
                               .map(
                                 (wc) => DropdownMenuItem(
                                   value: wc,
@@ -300,8 +334,39 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                     ],
 
-                    // Injury section
-                    if (widget.athlete.role != 'coach') ...[
+                    // Emergency contact
+                    const SizedBox(height: 32),
+                    const Text(
+                      'Emergency Contact',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    TextFormField(
+                      controller: _emergencyContactController,
+                      decoration: const InputDecoration(
+                        labelText: 'Emergency Contact Name',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.contact_emergency),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    TextFormField(
+                      controller: _emergencyPhoneController,
+                      decoration: const InputDecoration(
+                        labelText: 'Emergency Contact Phone',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.phone),
+                      ),
+                      keyboardType: TextInputType.phone,
+                    ),
+
+                    // Injury section (not for coaches/admins)
+                    if (!_isCoach && !_isAdmin) ...[
                       const SizedBox(height: 32),
                       const Text(
                         'Injury Status',
@@ -317,14 +382,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         subtitle: const Text(
                           'Toggle if you have an active injury',
                         ),
-                        value: _isInjured,
+                        value: _hasInjury,
                         onChanged: (value) {
-                          setState(() => _isInjured = value);
+                          setState(() => _hasInjury = value);
                         },
                         contentPadding: EdgeInsets.zero,
                       ),
 
-                      if (_isInjured) ...[
+                      if (_hasInjury) ...[
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _injuryDetailsController,
@@ -340,54 +405,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ],
                     ],
 
-                    // Physical stats info (read-only for athletes)
-                    if (widget.athlete.role != 'coach' &&
-                        (widget.athlete.height != null ||
-                            widget.athlete.weight != null ||
-                            widget.athlete.wingspan != null)) ...[
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.blue[50],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.blue[200]!),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.info_outline,
-                                  color: Colors.blue[700],
-                                ),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  'Physical Stats',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Your physical stats (height, weight, wingspan) can only be updated by your coach.',
-                              style: TextStyle(color: Colors.black87),
-                            ),
-                            const SizedBox(height: 12),
-                            if (widget.athlete.height != null)
-                              Text('Height: ${widget.athlete.height}"'),
-                            if (widget.athlete.weight != null)
-                              Text('Weight: ${widget.athlete.weight} lbs'),
-                            if (widget.athlete.wingspan != null)
-                              Text('Wingspan: ${widget.athlete.wingspan}"'),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                    ],
+                    const SizedBox(height: 32),
 
                     SizedBox(
                       width: double.infinity,

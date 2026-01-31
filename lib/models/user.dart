@@ -1,168 +1,132 @@
 class AppUser {
-  final String id;
+  final String id; // Firebase Auth UID
   final String name;
   final String email;
-  final String role; // 'coach', 'coxswain', or 'rower'
-  final String? gender; // 'male' or 'female'
-  final String? teamId;
-  final String? side; // 'port', 'starboard', or 'both' (only for rowers)
-  final String?
-  weightClass; // 'lightweight', 'heavyweight', 'openweight' (only for rowers)
-  final double? height; // in inches (not for coxswains)
-  final double? weight; // in pounds (not for coxswains)
-  final double? wingspan; // in inches (not for coxswains)
-  final bool isInjured; // injury status flag
-  final String? injuryDetails; // details about the injury
-  final List<ErgScore> ergScores; // not for coxswains
+  final String? phone;
+  final String? profileImageUrl;
   final DateTime createdAt;
+
+  // Personal attributes
+  final String? gender;
+  final DateTime? dateOfBirth;
+  final double? height; // inches
+  final double? weight; // lbs
+  final double? wingspan; // inches
+
+  // Medical/emergency
+  final bool hasInjury;
+  final String? injuryDetails;
+  final String? emergencyContact;
+  final String? emergencyPhone;
+
+  // Multi-org support - remembers last selection
+  final String? currentOrganizationId;
+  final String? currentMembershipId;
 
   AppUser({
     required this.id,
     required this.name,
     required this.email,
-    required this.role,
-    this.teamId,
+    this.phone,
+    this.profileImageUrl,
+    required this.createdAt,
     this.gender,
-    this.side,
-    this.weightClass,
+    this.dateOfBirth,
     this.height,
     this.weight,
     this.wingspan,
-    this.isInjured = false,
+    this.hasInjury = false,
     this.injuryDetails,
-    this.ergScores = const [],
-    required this.createdAt,
+    this.emergencyContact,
+    this.emergencyPhone,
+    this.currentOrganizationId,
+    this.currentMembershipId,
   });
 
-  // Convert Athlete to Map (for Firestore)
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'name': name,
       'email': email,
-      'role': role,
+      'phone': phone,
+      'profileImageUrl': profileImageUrl,
+      'createdAt': createdAt.toIso8601String(),
       'gender': gender,
-      'teamId': teamId,
-      'side': side,
-      'weightClass': weightClass,
+      'dateOfBirth': dateOfBirth?.toIso8601String(),
       'height': height,
       'weight': weight,
       'wingspan': wingspan,
-      'isInjured': isInjured,
+      'hasInjury': hasInjury,
       'injuryDetails': injuryDetails,
-      'ergScores': ergScores.map((score) => score.toMap()).toList(),
-      'createdAt': createdAt.toIso8601String(),
+      'emergencyContact': emergencyContact,
+      'emergencyPhone': emergencyPhone,
+      'currentOrganizationId': currentOrganizationId,
+      'currentMembershipId': currentMembershipId,
     };
   }
 
-  // Create Athlete from Map (from Firestore)
   factory AppUser.fromMap(Map<String, dynamic> map) {
     return AppUser(
       id: map['id'] ?? '',
       name: map['name'] ?? '',
       email: map['email'] ?? '',
-      role: map['role'] ?? 'rower',
+      phone: map['phone'],
+      profileImageUrl: map['profileImageUrl'],
+      createdAt: DateTime.parse(map['createdAt']),
       gender: map['gender'],
-      teamId: map['teamId'],
-      side: map['side'],
-      weightClass: map['weightClass'],
+      dateOfBirth: map['dateOfBirth'] != null
+          ? DateTime.parse(map['dateOfBirth'])
+          : null,
       height: map['height']?.toDouble(),
       weight: map['weight']?.toDouble(),
       wingspan: map['wingspan']?.toDouble(),
-      isInjured: map['isInjured'] ?? false,
+      hasInjury: map['hasInjury'] ?? false,
       injuryDetails: map['injuryDetails'],
-      ergScores:
-          (map['ergScores'] as List<dynamic>?)
-              ?.map((score) => ErgScore.fromMap(score))
-              .toList() ??
-          [],
-      createdAt: DateTime.parse(map['createdAt']),
+      emergencyContact: map['emergencyContact'],
+      emergencyPhone: map['emergencyPhone'],
+      currentOrganizationId: map['currentOrganizationId'],
+      currentMembershipId: map['currentMembershipId'],
     );
   }
 
-  // Create a copy with some fields updated
   AppUser copyWith({
     String? id,
     String? name,
     String? email,
-    String? role,
+    String? phone,
+    String? profileImageUrl,
+    DateTime? createdAt,
     String? gender,
-    String? teamId,
-    String? side,
-    String? weightClass,
+    DateTime? dateOfBirth,
     double? height,
     double? weight,
     double? wingspan,
-    bool? isInjured,
+    bool? hasInjury,
     String? injuryDetails,
-    List<ErgScore>? ergScores,
-    DateTime? createdAt,
+    String? emergencyContact,
+    String? emergencyPhone,
+    String? currentOrganizationId,
+    String? currentMembershipId,
   }) {
     return AppUser(
       id: id ?? this.id,
       name: name ?? this.name,
       email: email ?? this.email,
-      role: role ?? this.role,
-      teamId: teamId ?? this.teamId,
+      phone: phone ?? this.phone,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      createdAt: createdAt ?? this.createdAt,
       gender: gender ?? this.gender,
-      side: side ?? this.side,
-      weightClass: weightClass ?? this.weightClass,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
       height: height ?? this.height,
       weight: weight ?? this.weight,
       wingspan: wingspan ?? this.wingspan,
-      isInjured: isInjured ?? this.isInjured,
+      hasInjury: hasInjury ?? this.hasInjury,
       injuryDetails: injuryDetails ?? this.injuryDetails,
-      ergScores: ergScores ?? this.ergScores,
-      createdAt: createdAt ?? this.createdAt,
-    );
-  }
-
-  // Get weight class options based on gender
-  static List<String> getWeightClassOptions(String? gender) {
-    if (gender == 'male') {
-      return ['Lightweight', 'Heavyweight'];
-    } else if (gender == 'female') {
-      return ['Lightweight', 'Openweight'];
-    }
-    return [];
-  }
-}
-
-class ErgScore {
-  final String testType; // '2k', '6k', '500m sprint', etc.
-  final int timeInSeconds;
-  final DateTime date;
-  final bool isPersonal; // true if athlete logged it themselves
-
-  ErgScore({
-    required this.testType,
-    required this.timeInSeconds,
-    required this.date,
-    this.isPersonal = false,
-  });
-
-  // Format time as MM:SS.T
-  String get formattedTime {
-    int minutes = timeInSeconds ~/ 60;
-    double seconds = (timeInSeconds % 60).toDouble();
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toStringAsFixed(1).padLeft(4, '0')}';
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'testType': testType,
-      'timeInSeconds': timeInSeconds,
-      'date': date.toIso8601String(),
-      'isPersonal': isPersonal,
-    };
-  }
-
-  factory ErgScore.fromMap(Map<String, dynamic> map) {
-    return ErgScore(
-      testType: map['testType'] ?? '',
-      timeInSeconds: map['timeInSeconds'] ?? 0,
-      date: DateTime.parse(map['date']),
-      isPersonal: map['isPersonal'] ?? false,
+      emergencyContact: emergencyContact ?? this.emergencyContact,
+      emergencyPhone: emergencyPhone ?? this.emergencyPhone,
+      currentOrganizationId:
+          currentOrganizationId ?? this.currentOrganizationId,
+      currentMembershipId: currentMembershipId ?? this.currentMembershipId,
     );
   }
 }

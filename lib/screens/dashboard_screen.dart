@@ -1,313 +1,226 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../services/athlete_service.dart';
+import '../services/user_service.dart';
+import '../services/membership_service.dart';
+import '../services/organization_service.dart';
 import '../services/team_service.dart';
-import '../models/athlete.dart';
+import '../models/user.dart';
+import '../models/membership.dart';
+import '../models/organization.dart';
 import '../models/team.dart';
-import 'team_setup_screen.dart';
-import 'roster_screen.dart';
 import 'settings_screen.dart';
-import 'login_screen.dart';
 import 'equipment_screen.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final authService = AuthService();
-    final athleteService = AthleteService();
-    final user = authService.currentUser;
-
-    return FutureBuilder<Athlete?>(
-      future: athleteService.getCurrentUserProfile(user!.uid),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error, size: 64, color: Colors.red),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Error loading profile',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Details: ${snapshot.error}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        await authService.signOut();
-                        if (context.mounted) {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (context) => const LoginScreen(),
-                            ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.logout),
-                      label: const Text('Sign Out and Try Again'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        final athlete = snapshot.data;
-
-        if (athlete == null) {
-          return Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.person_off,
-                      size: 64,
-                      color: Colors.orange,
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'No Profile Found',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'User ID: ${user.uid}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'This account exists but has no athlete profile in the database.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () async {
-                        await authService.signOut();
-                        if (context.mounted) {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (context) => const LoginScreen(),
-                            ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.logout),
-                      label: const Text('Sign Out and Try Again'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        if (athlete.role == 'coach') {
-          return _CoachDashboard(athlete: athlete);
-        } else {
-          return _AthleteDashboard(athlete: athlete);
-        }
-      },
-    );
-  }
+  State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-// Coach Dashboard
-class _CoachDashboard extends StatelessWidget {
-  final Athlete athlete;
-
-  const _CoachDashboard({required this.athlete});
+class _DashboardScreenState extends State<DashboardScreen> {
+  final _authService = AuthService();
+  final _userService = UserService();
+  final _membershipService = MembershipService();
+  final _orgService = OrganizationService();
+  final _teamService = TeamService();
 
   @override
   Widget build(BuildContext context) {
-    final teamService = TeamService();
+    final userId = _authService.currentUser!.uid;
 
-    return FutureBuilder<Team?>(
-      future: teamService.getTeamByCoachId(athlete.id),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+    return StreamBuilder<AppUser?>(
+      stream: _userService.getUserStream(userId),
+      builder: (context, userSnapshot) {
+        if (userSnapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        final team = snapshot.data;
-
-        if (team == null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (context) => const TeamSetupScreen()),
-            );
-          });
+        final user = userSnapshot.data;
+        if (user == null) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(child: Text('Error loading user')),
           );
         }
 
-        return _DashboardScaffold(athlete: athlete, team: team, isCoach: true);
-      },
-    );
-  }
-}
+        // Get user's memberships
+        return StreamBuilder<List<Membership>>(
+          stream: _membershipService.getUserMemberships(userId),
+          builder: (context, membershipsSnapshot) {
+            if (membershipsSnapshot.connectionState ==
+                ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
 
-// Athlete Dashboard
-class _AthleteDashboard extends StatelessWidget {
-  final Athlete athlete;
+            final memberships = membershipsSnapshot.data ?? [];
 
-  const _AthleteDashboard({required this.athlete});
+            if (memberships.isEmpty) {
+              // Add debug info here
+              print('DEBUG: No memberships found');
+              print('DEBUG: User ID: $userId');
+              print('DEBUG: Current Org ID: ${user.currentOrganizationId}');
+              print(
+                'DEBUG: Current Membership ID: ${user.currentMembershipId}',
+              );
 
-  @override
-  Widget build(BuildContext context) {
-    final teamService = TeamService();
-
-    if (athlete.teamId == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('The Boathouse'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.settings),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const SettingsScreen(),
+              return Scaffold(
+                body: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.group_off,
+                          size: 80,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'No Memberships',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'You haven\'t joined any organizations yet.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: () {
+                            // TODO: Navigate to join organization
+                          },
+                          child: const Text('Join an Organization'),
+                        ),
+                      ],
+                    ),
                   ),
-                );
+                ),
+              );
+            }
+
+            // Find current membership or use first one
+            Membership currentMembership;
+            if (user.currentMembershipId != null) {
+              currentMembership = memberships.firstWhere(
+                (m) => m.id == user.currentMembershipId,
+                orElse: () => memberships.first,
+              );
+            } else {
+              currentMembership = memberships.first;
+            }
+
+            // Load organization and team data
+            return FutureBuilder<Organization?>(
+              future: _orgService.getOrganization(
+                currentMembership.organizationId,
+              ),
+              builder: (context, orgSnapshot) {
+                if (orgSnapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                final organization = orgSnapshot.data;
+
+                if (currentMembership.teamId != null) {
+                  // Has a team - load team data
+                  return FutureBuilder<Team?>(
+                    future: _teamService.getTeam(currentMembership.teamId!),
+                    builder: (context, teamSnapshot) {
+                      final team = teamSnapshot.data;
+
+                      return _DashboardContent(
+                        user: user,
+                        memberships: memberships,
+                        currentMembership: currentMembership,
+                        organization: organization,
+                        team: team,
+                        onMembershipChanged: (newMembership) async {
+                          await _userService.updateCurrentContext(
+                            userId,
+                            newMembership.organizationId,
+                            newMembership.id,
+                          );
+                        },
+                      );
+                    },
+                  );
+                } else {
+                  // No team - individual member
+                  return _DashboardContent(
+                    user: user,
+                    memberships: memberships,
+                    currentMembership: currentMembership,
+                    organization: organization,
+                    team: null,
+                    onMembershipChanged: (newMembership) async {
+                      await _userService.updateCurrentContext(
+                        userId,
+                        newMembership.organizationId,
+                        newMembership.id,
+                      );
+                    },
+                  );
+                }
               },
-            ),
-          ],
-        ),
-        body: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.group_off, size: 80, color: Colors.grey),
-                SizedBox(height: 24),
-                Text(
-                  'Not Assigned to a Team',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: 16),
-                Text(
-                  'Please contact your coach to be added to the team roster.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return FutureBuilder<Team?>(
-      future: teamService.getTeam(athlete.teamId!),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final team = snapshot.data;
-
-        return _DashboardScaffold(athlete: athlete, team: team, isCoach: false);
+            );
+          },
+        );
       },
     );
   }
 }
 
-// Main Dashboard Scaffold
-// Main Dashboard Scaffold
-class _DashboardScaffold extends StatefulWidget {
-  final Athlete athlete;
+class _DashboardContent extends StatelessWidget {
+  final AppUser user;
+  final List<Membership> memberships;
+  final Membership currentMembership;
+  final Organization? organization;
   final Team? team;
-  final bool isCoach;
+  final Function(Membership) onMembershipChanged;
 
-  const _DashboardScaffold({
-    required this.athlete,
+  const _DashboardContent({
+    required this.user,
+    required this.memberships,
+    required this.currentMembership,
+    required this.organization,
     required this.team,
-    required this.isCoach,
+    required this.onMembershipChanged,
   });
 
-  @override
-  State<_DashboardScaffold> createState() => _DashboardScaffoldState();
-}
+  bool get isAdmin => currentMembership.role == MembershipRole.admin;
+  bool get isCoach => currentMembership.role == MembershipRole.coach || isAdmin;
 
-class _DashboardScaffoldState extends State<_DashboardScaffold> {
-  late Team? currentTeam;
-
-  @override
-  void initState() {
-    super.initState();
-    currentTeam = widget.team;
-  }
-
-  // Refresh team data
-  Future<void> _refreshTeam() async {
-    if (currentTeam != null) {
-      final teamService = TeamService();
-      final updatedTeam = await teamService.getTeam(currentTeam!.id);
-      if (mounted) {
-        setState(() {
-          currentTeam = updatedTeam;
-        });
-      }
+  String _getRoleDisplayName() {
+    String roleName = currentMembership.displayName;
+    if (currentMembership.customTitle != null) {
+      return currentMembership.customTitle!;
     }
-  }
 
-  String _getDisplayName() {
-    if (widget.athlete.role == 'coach') {
-      return 'Coach ${widget.athlete.name}';
+    switch (currentMembership.role) {
+      case MembershipRole.coach:
+        return 'Coach ${user.name}';
+      case MembershipRole.admin:
+        return 'Admin ${user.name}';
+      default:
+        return user.name;
     }
-    return widget.athlete.name;
   }
 
   @override
   Widget build(BuildContext context) {
-    // Use team colors or defaults
-    final primaryColor =
-        currentTeam?.primaryColorObj ?? const Color(0xFF1976D2);
-    final secondaryColor =
-        currentTeam?.secondaryColorObj ?? const Color(0xFFFFFFFF);
+    final primaryColor = team?.primaryColorObj ?? const Color(0xFF1976D2);
+    final secondaryColor = team?.secondaryColorObj ?? const Color(0xFFFFFFFF);
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -317,7 +230,7 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Welcome header with boathouse icon
+              // Header with organization/team switcher
               Container(
                 width: double.infinity,
                 padding: EdgeInsets.fromLTRB(
@@ -340,10 +253,24 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Settings button in top right
+                    // Top row: Role switcher + Settings
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
+                        // Role switcher dropdown
+                        if (memberships.length > 1)
+                          Expanded(
+                            child: _RoleSwitcher(
+                              memberships: memberships,
+                              currentMembership: currentMembership,
+                              onChanged: onMembershipChanged,
+                              textColor: primaryColor.computeLuminance() > 0.5
+                                  ? Colors.black
+                                  : Colors.white,
+                            ),
+                          )
+                        else
+                          const SizedBox(),
                         IconButton(
                           icon: Icon(
                             Icons.settings,
@@ -351,24 +278,25 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
                                 ? Colors.black
                                 : Colors.white,
                           ),
-                          onPressed: () async {
-                            final result = await Navigator.of(context).push(
+                          onPressed: () {
+                            Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (context) => SettingsScreen(
-                                  athlete: widget.athlete,
-                                  team: currentTeam,
+                                  user: user,
+                                  membership: currentMembership,
+                                  organization: organization,
+                                  team: team,
                                 ),
                               ),
                             );
-                            // Refresh team if settings were updated
-                            if (result == true) {
-                              await _refreshTeam();
-                            }
                           },
                         ),
                       ],
                     ),
-                    // Boathouse icon placeholder
+
+                    const SizedBox(height: 16),
+
+                    // Boathouse icon
                     Center(
                       child: Icon(
                         Icons.house_outlined,
@@ -379,6 +307,8 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
                       ),
                     ),
                     const SizedBox(height: 16),
+
+                    // Welcome message
                     Text(
                       'Welcome back,',
                       style: TextStyle(
@@ -390,7 +320,7 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _getDisplayName(),
+                      _getRoleDisplayName(),
                       style: TextStyle(
                         color: primaryColor.computeLuminance() > 0.5
                             ? Colors.black
@@ -399,16 +329,30 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    if (currentTeam != null) ...[
+
+                    // Organization and team name
+                    if (organization != null) ...[
                       const SizedBox(height: 8),
                       Text(
-                        currentTeam!.name,
+                        organization!.name,
                         style: TextStyle(
                           color: primaryColor.computeLuminance() > 0.5
                               ? Colors.black54
                               : Colors.white70,
                           fontSize: 18,
                           fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                    if (team != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        team!.name,
+                        style: TextStyle(
+                          color: primaryColor.computeLuminance() > 0.5
+                              ? Colors.black.withOpacity(0.6)
+                              : Colors.white.withOpacity(0.8),
+                          fontSize: 16,
                         ),
                       ),
                     ],
@@ -432,23 +376,22 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
                     ),
                     const SizedBox(height: 16),
 
-                    if (widget.isCoach) ...[
-                      // Coach view
+                    // Navigation based on role
+                    if (isCoach || isAdmin) ...[
+                      // Admin/Coach view
                       Row(
                         children: [
                           Expanded(
                             child: _DashboardCard(
                               title: 'Roster',
-                              subtitle: 'Manage team members',
+                              subtitle: 'Manage members',
                               icon: Icons.people,
                               color: primaryColor,
                               onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => RosterScreen(
-                                      teamId: currentTeam!.id,
-                                      team: currentTeam,
-                                    ),
+                                // TODO: Navigate to roster
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Roster coming soon!'),
                                   ),
                                 );
                               },
@@ -458,19 +401,22 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
                           Expanded(
                             child: _DashboardCard(
                               title: 'Equipment',
-                              subtitle: 'Boats, oars & gear',
+                              subtitle: 'Manage gear',
                               icon: Icons.rowing,
                               color: primaryColor,
                               onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => EquipmentScreen(
-                                      teamId: currentTeam!.id,
-                                      team: currentTeam,
-                                      athlete: widget.athlete,
+                                if (organization != null) {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => EquipmentScreen(
+                                        organizationId:
+                                            organization!.id, // Add the ! here
+                                        team: team,
+                                        currentMembership: currentMembership,
+                                      ),
                                     ),
-                                  ),
-                                );
+                                  );
+                                }
                               },
                             ),
                           ),
@@ -483,22 +429,20 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
                           Expanded(
                             child: _DashboardCard(
                               title: 'My Profile',
-                              subtitle: 'View your stats',
+                              subtitle: 'View stats',
                               icon: Icons.person,
                               color: primaryColor,
-                              onTap: () async {
-                                final result = await Navigator.of(context).push(
+                              onTap: () {
+                                Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (context) => SettingsScreen(
-                                      athlete: widget.athlete,
-                                      team: currentTeam,
+                                      user: user,
+                                      membership: currentMembership,
+                                      organization: organization,
+                                      team: team,
                                     ),
                                   ),
                                 );
-                                // Refresh if profile was updated
-                                if (result == true) {
-                                  await _refreshTeam();
-                                }
                               },
                             ),
                           ),
@@ -510,12 +454,10 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
                               icon: Icons.warning,
                               color: primaryColor,
                               onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => EquipmentScreen(
-                                      teamId: currentTeam!.id,
-                                      team: currentTeam,
-                                      athlete: widget.athlete,
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Equipment reporting coming soon!',
                                     ),
                                   ),
                                 );
@@ -525,21 +467,24 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
                         ],
                       ),
                     ],
+
                     const SizedBox(height: 12),
+
+                    // Common cards for all roles
                     Row(
                       children: [
                         Expanded(
                           child: _DashboardCard(
                             title: 'Lineups',
-                            subtitle: widget.isCoach
-                                ? 'Create boat lineups'
+                            subtitle: isCoach
+                                ? 'Create lineups'
                                 : 'View lineups',
                             icon: Icons.sports,
                             color: primaryColor,
                             onTap: () {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Lineups page coming soon!'),
+                                  content: Text('Lineups coming soon!'),
                                 ),
                               );
                             },
@@ -549,15 +494,15 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
                         Expanded(
                           child: _DashboardCard(
                             title: 'Workouts',
-                            subtitle: widget.isCoach
-                                ? 'Manage workouts'
+                            subtitle: isCoach
+                                ? 'Assign workouts'
                                 : 'View workouts',
                             icon: Icons.fitness_center,
                             color: primaryColor,
                             onTap: () {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Workouts page coming soon!'),
+                                  content: Text('Workouts coming soon!'),
                                 ),
                               );
                             },
@@ -565,13 +510,15 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 12),
+
                     Row(
                       children: [
                         Expanded(
                           child: _DashboardCard(
                             title: 'Schedule',
-                            subtitle: widget.isCoach
+                            subtitle: isCoach
                                 ? 'Manage schedule'
                                 : 'View schedule',
                             icon: Icons.calendar_today,
@@ -579,7 +526,7 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
                             onTap: () {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Schedule page coming soon!'),
+                                  content: Text('Schedule coming soon!'),
                                 ),
                               );
                             },
@@ -589,17 +536,13 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
                         Expanded(
                           child: _DashboardCard(
                             title: 'Announcements',
-                            subtitle: widget.isCoach
-                                ? 'Post updates'
-                                : 'View updates',
+                            subtitle: isCoach ? 'Post updates' : 'View updates',
                             icon: Icons.announcement,
                             color: primaryColor,
                             onTap: () {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text(
-                                    'Announcements page coming soon!',
-                                  ),
+                                  content: Text('Announcements coming soon!'),
                                 ),
                               );
                             },
@@ -614,6 +557,49 @@ class _DashboardScaffoldState extends State<_DashboardScaffold> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _RoleSwitcher extends StatelessWidget {
+  final List<Membership> memberships;
+  final Membership currentMembership;
+  final Function(Membership) onChanged;
+  final Color textColor;
+
+  const _RoleSwitcher({
+    required this.memberships,
+    required this.currentMembership,
+    required this.onChanged,
+    required this.textColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButton<Membership>(
+      value: currentMembership,
+      dropdownColor: Colors.white,
+      underline: Container(),
+      icon: Icon(Icons.expand_more, color: textColor),
+      style: TextStyle(
+        color: textColor,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+      items: memberships.map((membership) {
+        return DropdownMenuItem<Membership>(
+          value: membership,
+          child: Text(
+            '${membership.displayName}',
+            style: const TextStyle(color: Colors.black),
+          ),
+        );
+      }).toList(),
+      onChanged: (membership) {
+        if (membership != null) {
+          onChanged(membership);
+        }
+      },
     );
   }
 }

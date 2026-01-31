@@ -1,48 +1,30 @@
 import 'package:flutter/material.dart';
-import '../services/athlete_service.dart';
+import '../services/membership_service.dart';
+import '../services/user_service.dart';
+import '../services/organization_service.dart';
 import '../services/team_service.dart';
-import '../models/athlete.dart';
+import '../models/membership.dart';
+import '../models/user.dart';
+import '../models/organization.dart';
 import '../models/team.dart';
 import '../widgets/team_header.dart';
-import 'add_athlete_screen.dart';
-import 'athlete_detail_screen.dart';
 
 class RosterScreen extends StatelessWidget {
-  final String teamId;
-  final Team? team; // Add optional team parameter
+  final String organizationId;
+  final String? teamId;
+  final Team? team;
 
-  const RosterScreen({super.key, required this.teamId, this.team});
+  const RosterScreen({
+    super.key,
+    required this.organizationId,
+    this.teamId,
+    this.team,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final athleteService = AthleteService();
-    final teamService = TeamService();
+    final membershipService = MembershipService();
 
-    // If team is already provided, use it; otherwise fetch it
-    if (team != null) {
-      return _buildRosterContent(context, athleteService, team!);
-    }
-
-    return FutureBuilder<Team?>(
-      future: teamService.getTeam(teamId),
-      builder: (context, teamSnapshot) {
-        if (teamSnapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final fetchedTeam = teamSnapshot.data;
-        return _buildRosterContent(context, athleteService, fetchedTeam);
-      },
-    );
-  }
-
-  Widget _buildRosterContent(
-    BuildContext context,
-    AthleteService athleteService,
-    Team? team,
-  ) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: Column(
@@ -50,7 +32,7 @@ class RosterScreen extends StatelessWidget {
           TeamHeader(
             team: team,
             title: 'Team Roster',
-            subtitle: 'Manage your athletes',
+            subtitle: 'Manage your team',
             actions: [
               IconButton(
                 icon: Icon(
@@ -64,8 +46,12 @@ class RosterScreen extends StatelessWidget {
             ],
           ),
           Expanded(
-            child: StreamBuilder<List<Athlete>>(
-              stream: athleteService.getAthletesByTeam(teamId),
+            child: StreamBuilder<List<Membership>>(
+              stream: teamId != null
+                  ? membershipService.getTeamMemberships(teamId!)
+                  : membershipService.getOrganizationMemberships(
+                      organizationId,
+                    ),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -75,9 +61,9 @@ class RosterScreen extends StatelessWidget {
                   return Center(child: Text('Error: ${snapshot.error}'));
                 }
 
-                final athletes = snapshot.data ?? [];
+                final memberships = snapshot.data ?? [];
 
-                if (athletes.isEmpty) {
+                if (memberships.isEmpty) {
                   return const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -89,12 +75,12 @@ class RosterScreen extends StatelessWidget {
                         ),
                         SizedBox(height: 16),
                         Text(
-                          'No athletes yet',
+                          'No members yet',
                           style: TextStyle(fontSize: 18, color: Colors.grey),
                         ),
                         SizedBox(height: 8),
                         Text(
-                          'Tap the + button to add your first athlete',
+                          'Share your join code to invite members',
                           style: TextStyle(color: Colors.grey),
                         ),
                       ],
@@ -102,15 +88,65 @@ class RosterScreen extends StatelessWidget {
                   );
                 }
 
-                return ListView.separated(
+                // Group by role
+                final coaches = memberships
+                    .where(
+                      (m) =>
+                          m.role == MembershipRole.coach ||
+                          m.role == MembershipRole.admin,
+                    )
+                    .toList();
+                final rowers = memberships
+                    .where((m) => m.role == MembershipRole.rower)
+                    .toList();
+                final coxswains = memberships
+                    .where((m) => m.role == MembershipRole.coxswain)
+                    .toList();
+                final others = memberships
+                    .where(
+                      (m) =>
+                          m.role != MembershipRole.coach &&
+                          m.role != MembershipRole.admin &&
+                          m.role != MembershipRole.rower &&
+                          m.role != MembershipRole.coxswain,
+                    )
+                    .toList();
+
+                return ListView(
                   padding: const EdgeInsets.all(16),
-                  itemCount: athletes.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final athlete = athletes[index];
-                    return _AthleteCard(athlete: athlete);
-                  },
+                  children: [
+                    if (coaches.isNotEmpty) ...[
+                      _RoleSection(
+                        title: 'Coaches & Admins',
+                        memberships: coaches,
+                        color: Colors.purple,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (rowers.isNotEmpty) ...[
+                      _RoleSection(
+                        title: 'Rowers',
+                        memberships: rowers,
+                        color: Colors.blue,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (coxswains.isNotEmpty) ...[
+                      _RoleSection(
+                        title: 'Coxswains',
+                        memberships: coxswains,
+                        color: Colors.orange,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (others.isNotEmpty) ...[
+                      _RoleSection(
+                        title: 'Other Members',
+                        memberships: others,
+                        color: Colors.grey,
+                      ),
+                    ],
+                  ],
                 );
               },
             ),
@@ -119,26 +155,179 @@ class RosterScreen extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => AddAthleteScreen(teamId: teamId),
-            ),
+          // TODO: Show join code or invite screen
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Share join code to invite members')),
           );
         },
         backgroundColor: team?.primaryColorObj ?? Colors.blue,
-        child: const Icon(Icons.add, color: Colors.white),
+        child: const Icon(Icons.group_add, color: Colors.white),
       ),
     );
   }
 }
 
-class _AthleteCard extends StatelessWidget {
-  final Athlete athlete;
+class _RoleSection extends StatelessWidget {
+  final String title;
+  final List<Membership> memberships;
+  final Color color;
 
-  const _AthleteCard({required this.athlete});
+  const _RoleSection({
+    required this.title,
+    required this.memberships,
+    required this.color,
+  });
 
-  Color _getSideColor(String? side) {
-    if (side == null) return Colors.transparent;
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...memberships.map((membership) {
+          return _MemberCard(membership: membership, roleColor: color);
+        }).toList(),
+      ],
+    );
+  }
+}
+
+class _MemberCard extends StatelessWidget {
+  final Membership membership;
+  final Color roleColor;
+
+  const _MemberCard({required this.membership, required this.roleColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final userService = UserService();
+
+    return FutureBuilder<AppUser?>(
+      future: userService.getUser(membership.userId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        }
+
+        final user = snapshot.data;
+        if (user == null) {
+          return const SizedBox();
+        }
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: InkWell(
+            onTap: () {
+              // TODO: Navigate to member detail screen
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Member details coming soon!')),
+              );
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: roleColor,
+                    child: Text(
+                      user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user.name,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            if (membership.customTitle != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: roleColor.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  membership.customTitle!,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: roleColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            if (membership.role == MembershipRole.rower &&
+                                membership.side != null) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _getSideColor(
+                                    membership.side!,
+                                  ).withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  membership.side!.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: _getSideColor(membership.side!),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (user.hasInjury)
+                    const Icon(Icons.warning, color: Colors.red, size: 24)
+                  else
+                    const Icon(Icons.chevron_right, color: Colors.grey),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Color _getSideColor(String side) {
     switch (side.toLowerCase()) {
       case 'port':
         return Colors.red;
@@ -147,130 +336,7 @@ class _AthleteCard extends StatelessWidget {
       case 'both':
         return Colors.purple;
       default:
-        return Colors.transparent;
-    }
-  }
-
-  Color _getRoleColor(String role) {
-    switch (role.toLowerCase()) {
-      case 'coach':
-        return Colors.purple;
-      case 'coxswain':
-        return Colors.orange;
-      case 'rower':
-        return Colors.blue;
-      default:
         return Colors.grey;
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isRower = athlete.role == 'rower';
-    final Color sideColor = _getSideColor(athlete.side);
-    final bool showSideBadge = isRower && athlete.side != null;
-
-    return InkWell(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => AthleteDetailScreen(athlete: athlete),
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: athlete.isInjured ? Colors.red : Colors.black,
-            width: athlete.isInjured ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          color: athlete.isInjured ? Colors.red[50] : Colors.white,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      athlete.name,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _getRoleColor(athlete.role),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            athlete.role.toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        if (showSideBadge) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: sideColor,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              athlete.side!.toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              if (athlete.isInjured)
-                const Column(
-                  children: [
-                    Icon(Icons.warning, color: Colors.red, size: 28),
-                    SizedBox(height: 2),
-                    Text(
-                      'INJURED',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                )
-              else
-                const Icon(Icons.chevron_right, color: Colors.grey),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }

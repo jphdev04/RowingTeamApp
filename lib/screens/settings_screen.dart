@@ -1,18 +1,28 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../services/team_service.dart';
-import '../models/athlete.dart';
+import '../services/user_service.dart';
+import '../models/user.dart';
+import '../models/membership.dart';
+import '../models/organization.dart';
 import '../models/team.dart';
 import '../widgets/team_header.dart';
+import 'edit_profile_screen.dart';
 import 'team_settings_screen.dart';
 import 'login_screen.dart';
-import 'edit_profile_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-  final Athlete? athlete;
+  final AppUser user;
+  final Membership membership;
+  final Organization? organization;
   final Team? team;
 
-  const SettingsScreen({super.key, this.athlete, this.team});
+  const SettingsScreen({
+    super.key,
+    required this.user,
+    required this.membership,
+    this.organization,
+    this.team,
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -22,7 +32,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final authService = AuthService();
-    final user = authService.currentUser;
+    final isAdmin = widget.membership.role == MembershipRole.admin;
+    final isCoach = widget.membership.role == MembershipRole.coach || isAdmin;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -31,7 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TeamHeader(
             team: widget.team,
             title: 'Settings',
-            subtitle: widget.athlete?.name ?? 'Profile',
+            subtitle: widget.user.name,
             actions: [
               IconButton(
                 icon: Icon(
@@ -60,9 +71,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         radius: 50,
                         backgroundColor: Colors.blue,
                         child: Text(
-                          widget.athlete?.name.isNotEmpty == true
-                              ? widget.athlete!.name[0].toUpperCase()
-                              : user?.email?[0].toUpperCase() ?? '?',
+                          widget.user.name.isNotEmpty
+                              ? widget.user.name[0].toUpperCase()
+                              : '?',
                           style: const TextStyle(
                             fontSize: 40,
                             color: Colors.white,
@@ -71,7 +82,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        widget.athlete?.name ?? 'Unknown',
+                        widget.user.name,
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -79,29 +90,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        user?.email ?? '',
+                        widget.user.email,
                         style: const TextStyle(
                           fontSize: 14,
                           color: Colors.grey,
                         ),
                       ),
-                      if (widget.athlete != null) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getRoleColor(widget.membership.role),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          widget.membership.customTitle ??
+                              widget.membership.role.name.toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      if (widget.organization != null) ...[
                         const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
+                        Text(
+                          widget.organization!.name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
                           ),
-                          decoration: BoxDecoration(
-                            color: _getRoleColor(widget.athlete!.role),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            widget.athlete!.role.toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        ),
+                      ],
+                      if (widget.team != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.team!.name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
                           ),
                         ),
                       ],
@@ -109,8 +139,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
 
-                // Team Management section for coaches
-                if (widget.athlete?.role == 'coach') ...[
+                // Team Management section (for coaches/admins with teams)
+                if (isCoach && widget.team != null) ...[
                   const SizedBox(height: 8),
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -123,27 +153,78 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ),
-                  if (widget.team != null)
-                    ListTile(
-                      leading: const Icon(Icons.palette),
-                      title: const Text('Team Settings'),
-                      subtitle: const Text('Change team name and colors'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () async {
-                        final result = await Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                TeamSettingsScreen(team: widget.team!),
-                          ),
-                        );
-                        // If team was updated, pop back to dashboard with result
-                        if (result == true && mounted) {
-                          Navigator.of(
-                            context,
-                          ).pop(true); // Pass result back to dashboard
+                  ListTile(
+                    leading: const Icon(Icons.palette),
+                    title: const Text('Team Settings'),
+                    subtitle: const Text('Change team name and colors'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () async {
+                      final result = await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              TeamSettingsScreen(team: widget.team!),
+                        ),
+                      );
+                      if (result == true && mounted) {
+                        setState(() {});
+                      }
+                    },
+                  ),
+                  const Divider(),
+                ],
+
+                // Organization Management (for admins)
+                if (isAdmin) ...[
+                  const SizedBox(height: 8),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Text(
+                      'Organization Management',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.business),
+                    title: const Text('Organization Settings'),
+                    subtitle: const Text('Manage organization details'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Coming soon!')),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.people),
+                    title: const Text('Manage Members'),
+                    subtitle: const Text('View and approve join requests'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Coming soon!')),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.group_add),
+                    title: const Text('Join Code'),
+                    subtitle: Text(widget.organization?.joinCode ?? 'N/A'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.copy),
+                      onPressed: () {
+                        if (widget.organization != null) {
+                          // TODO: Copy to clipboard
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Join code copied!')),
+                          );
                         }
                       },
                     ),
+                  ),
                   const Divider(),
                 ],
 
@@ -164,19 +245,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: const Text('Edit Profile'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () async {
-                    if (widget.athlete != null) {
-                      final result = await Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => EditProfileScreen(
-                            athlete: widget.athlete!,
-                            team: widget.team,
-                          ),
+                    final result = await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => EditProfileScreen(
+                          user: widget.user,
+                          membership: widget.membership,
+                          team: widget.team,
                         ),
-                      );
-                      // Refresh if profile was updated
-                      if (result == true && mounted) {
-                        setState(() {});
-                      }
+                      ),
+                    );
+                    if (result == true && mounted) {
+                      setState(() {});
                     }
                   },
                 ),
@@ -211,7 +290,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     showAboutDialog(
                       context: context,
                       applicationName: 'The Boathouse',
-                      applicationVersion: '1.0.0',
+                      applicationVersion: '2.0.0',
                       applicationLegalese: '© 2026 The Boathouse',
                     );
                   },
@@ -276,16 +355,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Color _getRoleColor(String role) {
-    switch (role.toLowerCase()) {
-      case 'coach':
+  Color _getRoleColor(MembershipRole role) {
+    switch (role) {
+      case MembershipRole.admin:
+        return Colors.deepPurple;
+      case MembershipRole.coach:
         return Colors.purple;
-      case 'coxswain':
+      case MembershipRole.coxswain:
         return Colors.orange;
-      case 'rower':
+      case MembershipRole.rower:
         return Colors.blue;
-      default:
-        return Colors.grey;
+      case MembershipRole.boatman:
+        return Colors.brown;
+      case MembershipRole.athlete:
+        return Colors.teal;
     }
   }
 }
