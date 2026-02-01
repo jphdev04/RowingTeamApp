@@ -10,6 +10,8 @@ import 'settings_screen.dart';
 import 'equipment_screen.dart';
 import 'organization_roster_screen.dart';
 import 'team_selector_screen.dart';
+import 'team_management_screen.dart';
+import 'organization_settings_screen.dart';
 
 class OrganizationDashboardScreen extends StatefulWidget {
   const OrganizationDashboardScreen({super.key});
@@ -168,16 +170,16 @@ class _OrganizationDashboardContent extends StatelessWidget {
                         IconButton(
                           icon: const Icon(Icons.settings, color: Colors.white),
                           onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => SettingsScreen(
-                                  user: user,
-                                  membership: currentMembership,
-                                  organization: organization,
-                                  team: null,
+                            if (organization != null) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      OrganizationSettingsScreen(
+                                        organization: organization!,
+                                      ),
                                 ),
-                              ),
-                            );
+                              );
+                            }
                           },
                         ),
                       ],
@@ -302,11 +304,15 @@ class _OrganizationDashboardContent extends StatelessWidget {
                             icon: Icons.groups,
                             color: primaryColor,
                             onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Team management coming soon!'),
-                                ),
-                              );
+                              if (organization != null) {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => TeamManagementScreen(
+                                      organization: organization!,
+                                    ),
+                                  ),
+                                );
+                              }
                             },
                           ),
                         ),

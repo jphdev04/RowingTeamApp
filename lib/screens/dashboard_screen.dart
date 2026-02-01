@@ -133,10 +133,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                 final organization = orgSnapshot.data;
 
-                if (currentMembership.teamId != null) {
-                  // Has a team - load team data
+                String? teamIdToLoad = currentMembership.teamId;
+
+                // If admin with no teamId, check if we're supposed to view a specific team
+                // This will be passed through navigation
+                final modalRoute = ModalRoute.of(context);
+                if (teamIdToLoad == null &&
+                    currentMembership.role == MembershipRole.admin &&
+                    modalRoute?.settings.arguments != null) {
+                  final args =
+                      modalRoute!.settings.arguments as Map<String, dynamic>?;
+                  teamIdToLoad = args?['teamId'] as String?;
+                }
+
+                if (teamIdToLoad != null) {
+                  // Load team data
                   return FutureBuilder<Team?>(
-                    future: _teamService.getTeam(currentMembership.teamId!),
+                    future: _teamService.getTeam(teamIdToLoad),
                     builder: (context, teamSnapshot) {
                       final team = teamSnapshot.data;
 
@@ -259,7 +272,8 @@ class _DashboardContent extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         // Team switcher button (if multiple memberships)
-                        if (memberships.length > 1)
+                        if (memberships.length > 1 ||
+                            currentMembership.role == MembershipRole.admin)
                           TextButton.icon(
                             onPressed: () {
                               Navigator.of(context).pushReplacement(

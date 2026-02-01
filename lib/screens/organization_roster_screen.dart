@@ -20,6 +20,7 @@ class OrganizationRosterScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final membershipService = MembershipService();
+    final teamService = TeamService();
     final primaryColor = const Color(0xFF6A1B9A);
 
     return Scaffold(

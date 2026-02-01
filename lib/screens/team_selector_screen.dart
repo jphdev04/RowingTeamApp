@@ -111,6 +111,13 @@ class _OrganizationSection extends StatelessWidget {
           (m) => m.role == MembershipRole.admin,
         );
 
+        print('DEBUG: Organization loaded: ${organization.name}');
+        print('DEBUG: hasAdminRole: $hasAdminRole');
+        print('DEBUG: Number of memberships: ${memberships.length}');
+        for (final m in memberships) {
+          print('DEBUG: Membership role: ${m.role}');
+        }
+
         return Card(
           margin: const EdgeInsets.only(bottom: 24),
           child: Padding(
@@ -168,138 +175,78 @@ class _OrganizationSection extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  const SizedBox(height: 0),
+                  Builder(
+                    builder: (context) {
+                      print(
+                        'DEBUG: Creating StreamBuilder with orgId: $organizationId',
+                      );
+                      print(
+                        'DEBUG: teamService exists: ${teamService != null}',
+                      );
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                  StreamBuilder<List<Team>>(
+                    stream: teamService.getOrganizationTeams(organizationId),
+                    builder: (context, teamsSnapshot) {
+                      if (teamsSnapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final teams = teamsSnapshot.data ?? [];
+
+                      if (teams.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Text(
+                            'No teams yet',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        );
+                      }
+
+                      return Column(
+                        children: teams.map((team) {
+                          final adminMembership = memberships.firstWhere(
+                            (m) => m.role == MembershipRole.admin,
+                          );
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: _ViewOption(
+                              title: team.name,
+                              subtitle: 'View as Admin',
+                              icon: Icons.groups,
+                              color: team.primaryColorObj,
+                              onTap: () async {
+                                await UserService().updateCurrentContext(
+                                  user.id,
+                                  organizationId,
+                                  adminMembership.id,
+                                );
+
+                                if (context.mounted) {
+                                  Navigator.of(context).pushReplacement(
+                                    MaterialPageRoute(
+                                      builder: (context) => TeamDashboardView(
+                                        team: team,
+                                        membership: adminMembership,
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
                 ],
 
                 // Teams
-                StreamBuilder<List<Team>>(
-                  stream: teamService.getOrganizationTeams(organizationId),
-                  builder: (context, teamsSnapshot) {
-                    if (teamsSnapshot.connectionState ==
-                        ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    final teams = teamsSnapshot.data ?? [];
-
-                    if (teams.isEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'No teams yet',
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                            if (hasAdminRole) ...[
-                              const SizedBox(height: 8),
-                              TextButton.icon(
-                                onPressed: () {
-                                  // TODO: Navigate to create team screen
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Create team coming soon!'),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.add),
-                                label: const Text('Create Team'),
-                              ),
-                            ],
-                          ],
-                        ),
-                      );
-                    }
-
-                    return Column(
-                      children: teams.map((team) {
-                        // For admins: always allow viewing any team
-                        // For non-admins: only show teams they're a member of
-                        final teamMembership = memberships.firstWhere(
-                          (m) => m.teamId == team.id,
-                          orElse: () {
-                            // If user is admin but not on this team, use their admin membership
-                            if (hasAdminRole) {
-                              return memberships.firstWhere(
-                                (m) => m.role == MembershipRole.admin,
-                              );
-                            }
-                            // Non-admin without membership to this team - skip it
-                            return Membership(
-                              id: '',
-                              userId: '',
-                              organizationId: '',
-                              role: MembershipRole.athlete,
-                              startDate: DateTime.now(),
-                            );
-                          },
-                        );
-
-                        // Skip if no valid membership (for non-admins)
-                        if (teamMembership.id.isEmpty) {
-                          return const SizedBox();
-                        }
-
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: _ViewOption(
-                            title: team.name,
-                            subtitle: teamMembership.teamId == team.id
-                                ? _getRoleLabel(teamMembership.role)
-                                : 'View as Admin', // Admin viewing a team they're not assigned to
-                            icon: Icons.groups,
-                            color: team.primaryColorObj,
-                            onTap: () async {
-                              // For admins viewing teams they're not assigned to,
-                              // we need to create a temporary context
-                              String membershipIdToUse = teamMembership.id;
-
-                              // If admin is viewing a team they're not on,
-                              // we'll use their admin membership but the system
-                              // will know to show them the team view
-                              if (teamMembership.teamId != team.id &&
-                                  hasAdminRole) {
-                                // Update user context with admin membership
-                                // (dashboard will handle showing the team)
-                                await UserService().updateCurrentContext(
-                                  user.id,
-                                  organizationId,
-                                  teamMembership.id,
-                                );
-
-                                // Navigate with team info in route
-                                if (context.mounted) {
-                                  Navigator.of(context).pushReplacement(
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          TeamDashboardWrapper(teamId: team.id),
-                                    ),
-                                  );
-                                }
-                              } else {
-                                // Regular flow - user has membership for this team
-                                await UserService().updateCurrentContext(
-                                  user.id,
-                                  organizationId,
-                                  membershipIdToUse,
-                                );
-
-                                if (context.mounted) {
-                                  Navigator.of(context).pushReplacement(
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const DashboardScreen(),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                          ),
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
               ],
             ),
           ),
