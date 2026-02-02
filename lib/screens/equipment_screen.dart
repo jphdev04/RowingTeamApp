@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import '../models/team.dart';
-import '../models/athlete.dart';
 import '../models/equipment.dart';
-import '../services/equipment_service.dart';
-import '../widgets/team_header.dart';
+import '../models/team.dart';
 import '../models/membership.dart';
+import '../models/organization.dart';
+import '../services/equipment_service.dart';
+import '../services/organization_service.dart';
+import '../widgets/team_header.dart';
 
 class EquipmentScreen extends StatelessWidget {
   final String organizationId;
@@ -17,6 +18,7 @@ class EquipmentScreen extends StatelessWidget {
     this.team,
     this.currentMembership,
   });
+
   bool get isCoach =>
       currentMembership?.role == MembershipRole.coach ||
       currentMembership?.role == MembershipRole.admin;
@@ -24,324 +26,321 @@ class EquipmentScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final equipmentService = EquipmentService();
+    final orgService = OrganizationService();
 
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: Column(
-        children: [
-          TeamHeader(
-            team: team,
-            title: 'Equipment',
-            subtitle: isCoach
-                ? 'Manage team equipment'
-                : 'View & report damage',
-            actions: [
-              IconButton(
-                icon: Icon(
-                  Icons.arrow_back,
-                  color: (team?.primaryColorObj.computeLuminance() ?? 0) > 0.5
-                      ? Colors.black
-                      : Colors.white,
+    return FutureBuilder<Organization?>(
+      future: orgService.getOrganization(organizationId),
+      builder: (context, orgSnapshot) {
+        final organization = orgSnapshot.data;
+
+        return Scaffold(
+          backgroundColor: Colors.grey[50],
+          body: Column(
+            children: [
+              TeamHeader(
+                team: team,
+                organization: team == null ? organization : null,
+                title: 'Equipment',
+                subtitle: 'Manage your gear',
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => Navigator.of(context).pop(),
                 ),
-                onPressed: () => Navigator.of(context).pop(),
+              ),
+              Expanded(
+                child: StreamBuilder<List<Equipment>>(
+                  stream: equipmentService.getEquipmentByTeam(organizationId),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final allEquipment = snapshot.data ?? [];
+
+                    // Filter damaged equipment
+                    final damagedEquipment = allEquipment
+                        .where((e) => e.isDamaged)
+                        .toList();
+
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Equipment Categories',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // First row
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _EquipmentCategoryCard(
+                                  title: 'Shells',
+                                  icon: Icons.rowing,
+                                  count: allEquipment
+                                      .where(
+                                        (e) => e.type == EquipmentType.shell,
+                                      )
+                                      .length,
+                                  color:
+                                      team?.primaryColorObj ??
+                                      organization?.primaryColorObj ??
+                                      Colors.blue,
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            EquipmentListScreen(
+                                              organizationId: organizationId,
+                                              team: team,
+                                              currentMembership:
+                                                  currentMembership,
+                                              equipmentType:
+                                                  EquipmentType.shell,
+                                              title: 'Shells',
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _EquipmentCategoryCard(
+                                  title: 'Oars',
+                                  icon: Icons.rowing,
+                                  count: allEquipment
+                                      .where((e) => e.type == EquipmentType.oar)
+                                      .length,
+                                  color:
+                                      team?.primaryColorObj ??
+                                      organization?.primaryColorObj ??
+                                      Colors.blue,
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            EquipmentListScreen(
+                                              organizationId: organizationId,
+                                              team: team,
+                                              currentMembership:
+                                                  currentMembership,
+                                              equipmentType: EquipmentType.oar,
+                                              title: 'Oars',
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // Second row
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _EquipmentCategoryCard(
+                                  title: 'Coxboxes',
+                                  icon: Icons.volume_up,
+                                  count: allEquipment
+                                      .where(
+                                        (e) => e.type == EquipmentType.coxbox,
+                                      )
+                                      .length,
+                                  color:
+                                      team?.primaryColorObj ??
+                                      organization?.primaryColorObj ??
+                                      Colors.blue,
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            EquipmentListScreen(
+                                              organizationId: organizationId,
+                                              team: team,
+                                              currentMembership:
+                                                  currentMembership,
+                                              equipmentType:
+                                                  EquipmentType.coxbox,
+                                              title: 'Coxboxes & Speakers',
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _EquipmentCategoryCard(
+                                  title: 'Launches',
+                                  icon: Icons.waves,
+                                  count: allEquipment
+                                      .where(
+                                        (e) => e.type == EquipmentType.launch,
+                                      )
+                                      .length,
+                                  color:
+                                      team?.primaryColorObj ??
+                                      organization?.primaryColorObj ??
+                                      Colors.blue,
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            EquipmentListScreen(
+                                              organizationId: organizationId,
+                                              team: team,
+                                              currentMembership:
+                                                  currentMembership,
+                                              equipmentType:
+                                                  EquipmentType.launch,
+                                              title: 'Coaching Launches',
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // Third row
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _EquipmentCategoryCard(
+                                  title: 'Ergs',
+                                  icon: Icons.monitor_heart,
+                                  count: allEquipment
+                                      .where((e) => e.type == EquipmentType.erg)
+                                      .length,
+                                  color:
+                                      team?.primaryColorObj ??
+                                      organization?.primaryColorObj ??
+                                      Colors.blue,
+                                  onTap: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            EquipmentListScreen(
+                                              organizationId: organizationId,
+                                              team: team,
+                                              currentMembership:
+                                                  currentMembership,
+                                              equipmentType: EquipmentType.erg,
+                                              title: 'Ergs & Land Training',
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: SizedBox(),
+                              ), // Empty space for alignment
+                            ],
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // Quick Stats
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceAround,
+                                children: [
+                                  _StatItem(
+                                    label: 'Total',
+                                    value: allEquipment.length.toString(),
+                                    color: Colors.blue,
+                                  ),
+                                  _StatItem(
+                                    label: 'Available',
+                                    value: allEquipment
+                                        .where(
+                                          (e) =>
+                                              e.status ==
+                                              EquipmentStatus.available,
+                                        )
+                                        .length
+                                        .toString(),
+                                    color: Colors.green,
+                                  ),
+                                  _StatItem(
+                                    label: 'Damaged',
+                                    value: damagedEquipment.length.toString(),
+                                    color: Colors.red,
+                                  ),
+                                  _StatItem(
+                                    label: 'Maintenance',
+                                    value: allEquipment
+                                        .where(
+                                          (e) =>
+                                              e.status ==
+                                              EquipmentStatus.maintenance,
+                                        )
+                                        .length
+                                        .toString(),
+                                    color: Colors.orange,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
             ],
           ),
-          Expanded(
-            child: StreamBuilder<List<Equipment>>(
-              stream: equipmentService.getEquipmentByTeam(organizationId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-
-                final allEquipment = snapshot.data ?? [];
-
-                // Group equipment by type
-                final shells = allEquipment
-                    .where((e) => e.type == EquipmentType.shell)
-                    .toList();
-                final launches = allEquipment
-                    .where((e) => e.type == EquipmentType.launch)
-                    .toList();
-                final coxboxes = allEquipment
-                    .where((e) => e.type == EquipmentType.coxbox)
-                    .toList();
-                final oars = allEquipment
-                    .where((e) => e.type == EquipmentType.oars)
-                    .toList();
-                final ergs = allEquipment
-                    .where((e) => e.type == EquipmentType.erg)
-                    .toList();
-
-                final primaryColor =
-                    team?.primaryColorObj ?? const Color(0xFF1976D2);
-
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Equipment type grid (similar to dashboard)
-                      Text(
-                        'Equipment Categories',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: primaryColor,
-                        ),
+          floatingActionButton: isCoach
+              ? FloatingActionButton(
+                  onPressed: () {
+                    // TODO: Navigate to add equipment screen
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Add equipment coming soon!'),
                       ),
-                      const SizedBox(height: 16),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _EquipmentCategoryCard(
-                              title: 'Shells',
-                              count: shells.length,
-                              icon: Icons.rowing,
-                              color: primaryColor,
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => EquipmentListScreen(
-                                      organizationId: organizationId,
-                                      team: team,
-                                      currentMembership: currentMembership,
-                                      equipmentType: EquipmentType.shell,
-                                      title: 'Shells',
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _EquipmentCategoryCard(
-                              title: 'Launches',
-                              count: launches.length,
-                              icon: Icons.directions_boat,
-                              color: primaryColor,
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => EquipmentListScreen(
-                                      organizationId: organizationId,
-                                      team: team,
-                                      currentMembership: currentMembership,
-                                      equipmentType: EquipmentType.launch,
-                                      title: 'Coaching Launches',
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _EquipmentCategoryCard(
-                              title: 'Cox Boxes',
-                              count: coxboxes.length,
-                              icon: Icons.speaker,
-                              color: primaryColor,
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => EquipmentListScreen(
-                                      organizationId: organizationId,
-                                      team: team,
-                                      currentMembership: currentMembership,
-                                      equipmentType: EquipmentType.coxbox,
-                                      title: 'Cox Boxes',
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _EquipmentCategoryCard(
-                              title: 'Oars',
-                              count: oars.length,
-                              icon: Icons.sports,
-                              color: primaryColor,
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => EquipmentListScreen(
-                                      organizationId: organizationId,
-                                      team: team,
-                                      currentMembership: currentMembership,
-                                      equipmentType: EquipmentType.oars,
-                                      title: 'Oars',
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _EquipmentCategoryCard(
-                              title: 'Ergs',
-                              count: ergs.length,
-                              icon: Icons.fitness_center,
-                              color: primaryColor,
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => EquipmentListScreen(
-                                      organizationId: organizationId,
-                                      team: team,
-                                      currentMembership: currentMembership,
-                                      equipmentType: EquipmentType.erg,
-                                      title: 'Ergs',
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          const Expanded(
-                            child: SizedBox(),
-                          ), // Empty space for alignment
-                        ],
-                      ),
-
-                      // Damaged equipment section
-                      if (allEquipment.any((e) => e.isDamaged)) ...[
-                        const SizedBox(height: 32),
-                        Text(
-                          'Damaged Equipment',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red[700],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ...allEquipment.where((e) => e.isDamaged).map((
-                          equipment,
-                        ) {
-                          return _DamagedEquipmentCard(
-                            equipment: equipment,
-                            isCoach: isCoach,
-                          );
-                        }).toList(),
-                      ],
-
-                      // Quick stats
-                      const SizedBox(height: 32),
-                      Text(
-                        'Quick Stats',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: primaryColor,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey[300]!),
-                        ),
-                        child: Column(
-                          children: [
-                            _StatRow(
-                              label: 'Total Equipment',
-                              value: allEquipment.length.toString(),
-                            ),
-                            const Divider(),
-                            _StatRow(
-                              label: 'Available',
-                              value: allEquipment
-                                  .where(
-                                    (e) =>
-                                        e.status == EquipmentStatus.available,
-                                  )
-                                  .length
-                                  .toString(),
-                              valueColor: Colors.green,
-                            ),
-                            const Divider(),
-                            _StatRow(
-                              label: 'Damaged',
-                              value: allEquipment
-                                  .where((e) => e.isDamaged)
-                                  .length
-                                  .toString(),
-                              valueColor: Colors.red,
-                            ),
-                            const Divider(),
-                            _StatRow(
-                              label: 'In Maintenance',
-                              value: allEquipment
-                                  .where(
-                                    (e) =>
-                                        e.status == EquipmentStatus.maintenance,
-                                  )
-                                  .length
-                                  .toString(),
-                              valueColor: Colors.orange,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: isCoach
-          ? FloatingActionButton(
-              onPressed: () {
-                // TODO: Navigate to add equipment screen
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Add equipment coming soon!')),
-                );
-              },
-              backgroundColor: team?.primaryColorObj ?? Colors.blue,
-              child: const Icon(Icons.add, color: Colors.white),
-            )
-          : null,
+                    );
+                  },
+                  backgroundColor:
+                      team?.primaryColorObj ?? organization?.primaryColorObj,
+                  child: const Icon(Icons.add, color: Colors.white),
+                )
+              : null,
+        );
+      },
     );
   }
 }
 
 class _EquipmentCategoryCard extends StatelessWidget {
   final String title;
-  final int count;
   final IconData icon;
+  final int count;
   final Color color;
   final VoidCallback onTap;
 
   const _EquipmentCategoryCard({
     required this.title,
-    required this.count,
     required this.icon,
+    required this.count,
     required this.color,
     required this.onTap,
   });
@@ -389,119 +388,41 @@ class _EquipmentCategoryCard extends StatelessWidget {
   }
 }
 
-class _DamagedEquipmentCard extends StatelessWidget {
-  final Equipment equipment;
-  final bool isCoach;
-
-  const _DamagedEquipmentCard({required this.equipment, required this.isCoach});
-
-  @override
-  Widget build(BuildContext context) {
-    final unresolvedReports = equipment.damageReports
-        .where((r) => !r.isResolved)
-        .toList();
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Colors.red, width: 2),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.warning, color: Colors.red),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    equipment.displayName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${unresolvedReports.length} unresolved report${unresolvedReports.length != 1 ? 's' : ''}',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            if (unresolvedReports.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              ...unresolvedReports.map((report) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red[50],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          report.description,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Reported by ${report.reportedByName}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StatRow extends StatelessWidget {
+class _StatItem extends StatelessWidget {
   final String label;
   final String value;
-  final Color? valueColor;
+  final Color color;
 
-  const _StatRow({required this.label, required this.value, this.valueColor});
+  const _StatItem({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
       children: [
-        Text(label, style: const TextStyle(fontSize: 16)),
         Text(
           value,
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 24,
             fontWeight: FontWeight.bold,
-            color: valueColor ?? Colors.black,
+            color: color,
           ),
         ),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
       ],
     );
   }
 }
 
-// Placeholder for the equipment list screen (we'll build this next)
+// Placeholder for EquipmentListScreen
 class EquipmentListScreen extends StatelessWidget {
-  final String organizationId; // Changed from teamId
+  final String organizationId;
   final Team? team;
-  final Membership? currentMembership; // Changed from Athlete athlete
+  final Membership? currentMembership;
   final EquipmentType equipmentType;
   final String title;
 

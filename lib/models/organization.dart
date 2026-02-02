@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class Organization {
   final String id;
   final String name;
@@ -12,6 +14,12 @@ class Organization {
   final bool isPublic;
   final bool requiresApproval;
 
+  final int primaryColor;
+  final int secondaryColor;
+
+  Color get primaryColorObj => Color(primaryColor);
+  Color get secondaryColorObj => Color(secondaryColor);
+
   Organization({
     required this.id,
     required this.name,
@@ -23,6 +31,8 @@ class Organization {
     required this.joinCode,
     this.isPublic = false,
     this.requiresApproval = true,
+    this.primaryColor = 0xFF6A1B9A, // Default deep purple
+    this.secondaryColor = 0xFFFFFFFF, // Default white
   });
 
   Map<String, dynamic> toMap() {
@@ -37,6 +47,8 @@ class Organization {
       'joinCode': joinCode,
       'isPublic': isPublic,
       'requiresApproval': requiresApproval,
+      'primaryColor': primaryColor,
+      'secondaryColor': secondaryColor,
     };
   }
 
@@ -52,6 +64,8 @@ class Organization {
       joinCode: map['joinCode'] ?? '',
       isPublic: map['isPublic'] ?? false,
       requiresApproval: map['requiresApproval'] ?? true,
+      primaryColor: map['primaryColor'] ?? 0xFF6A1B9A,
+      secondaryColor: map['secondaryColor'] ?? 0xFFFFFFFF,
     );
   }
 
@@ -66,6 +80,8 @@ class Organization {
     String? joinCode,
     bool? isPublic,
     bool? requiresApproval,
+    int? primaryColor,
+    int? secondaryColor,
   }) {
     return Organization(
       id: id ?? this.id,
@@ -78,6 +94,8 @@ class Organization {
       joinCode: joinCode ?? this.joinCode,
       isPublic: isPublic ?? this.isPublic,
       requiresApproval: requiresApproval ?? this.requiresApproval,
+      primaryColor: primaryColor ?? this.primaryColor,
+      secondaryColor: secondaryColor ?? this.secondaryColor,
     );
   }
 }

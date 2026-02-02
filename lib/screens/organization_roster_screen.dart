@@ -6,6 +6,7 @@ import '../models/membership.dart';
 import '../models/user.dart';
 import '../models/organization.dart';
 import '../models/team.dart';
+import '../widgets/team_header.dart';
 
 class OrganizationRosterScreen extends StatelessWidget {
   final String organizationId;
@@ -20,120 +21,139 @@ class OrganizationRosterScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final membershipService = MembershipService();
-    final teamService = TeamService();
     final primaryColor = const Color(0xFF6A1B9A);
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text('Organization Roster'),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-      ),
-      body: StreamBuilder<List<Membership>>(
-        stream: membershipService.getOrganizationMemberships(organizationId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final memberships = snapshot.data ?? [];
-
-          if (memberships.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.people_outline, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    'No members yet',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
-                  ),
-                ],
+      body: Column(
+        // CHANGE FROM JUST BODY TO COLUMN
+        children: [
+          TeamHeader(
+            // REPLACE APPBAR WITH THIS
+            organization: organization,
+            title: 'Organization Roster',
+            subtitle: 'All members',
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<List<Membership>>(
+              stream: membershipService.getOrganizationMemberships(
+                organizationId,
               ),
-            );
-          }
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-          // Group by team
-          final noTeam = memberships.where((m) => m.teamId == null).toList();
-          final teamGroups = <String, List<Membership>>{};
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
 
-          for (final membership in memberships) {
-            if (membership.teamId != null) {
-              if (!teamGroups.containsKey(membership.teamId)) {
-                teamGroups[membership.teamId!] = [];
-              }
-              teamGroups[membership.teamId!]!.add(membership);
-            }
-          }
+                final memberships = snapshot.data ?? [];
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              // Summary card
-              Card(
-                color: primaryColor.withOpacity(0.1),
-                child: Padding(
+                if (memberships.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.people_outline,
+                          size: 64,
+                          color: Colors.grey,
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'No members yet',
+                          style: TextStyle(fontSize: 18, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                // Group by team
+                final noTeam = memberships
+                    .where((m) => m.teamId == null)
+                    .toList();
+                final teamGroups = <String, List<Membership>>{};
+
+                for (final membership in memberships) {
+                  if (membership.teamId != null) {
+                    if (!teamGroups.containsKey(membership.teamId)) {
+                      teamGroups[membership.teamId!] = [];
+                    }
+                    teamGroups[membership.teamId!]!.add(membership);
+                  }
+                }
+
+                return ListView(
                   padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _StatItem(
-                        label: 'Total Members',
-                        value: memberships.length.toString(),
-                        icon: Icons.people,
+                  children: [
+                    // Summary card
+                    Card(
+                      color: primaryColor.withOpacity(0.1),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _StatItem(
+                              label: 'Total Members',
+                              value: memberships.length.toString(),
+                              icon: Icons.people,
+                            ),
+                            _StatItem(
+                              label: 'Teams',
+                              value: teamGroups.length.toString(),
+                              icon: Icons.groups,
+                            ),
+                            _StatItem(
+                              label: 'Admins',
+                              value: memberships
+                                  .where((m) => m.role == MembershipRole.admin)
+                                  .length
+                                  .toString(),
+                              icon: Icons.admin_panel_settings,
+                            ),
+                          ],
+                        ),
                       ),
-                      _StatItem(
-                        label: 'Teams',
-                        value: teamGroups.length.toString(),
-                        icon: Icons.groups,
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Team sections
+                    ...teamGroups.entries.map((entry) {
+                      return _TeamSection(
+                        teamId: entry.key,
+                        memberships: entry.value,
+                      );
+                    }).toList(),
+
+                    // No team section
+                    if (noTeam.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Organization Members (No Team)',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
                       ),
-                      _StatItem(
-                        label: 'Admins',
-                        value: memberships
-                            .where((m) => m.role == MembershipRole.admin)
-                            .length
-                            .toString(),
-                        icon: Icons.admin_panel_settings,
-                      ),
+                      const SizedBox(height: 8),
+                      ...noTeam.map((membership) {
+                        return _MemberCard(membership: membership);
+                      }).toList(),
                     ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Team sections
-              ...teamGroups.entries.map((entry) {
-                return _TeamSection(
-                  teamId: entry.key,
-                  memberships: entry.value,
+                  ],
                 );
-              }).toList(),
-
-              // No team section
-              if (noTeam.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                const Text(
-                  'Organization Members (No Team)',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ...noTeam.map((membership) {
-                  return _MemberCard(membership: membership);
-                }).toList(),
-              ],
-            ],
-          );
-        },
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -226,7 +246,7 @@ class _TeamSection extends StatelessWidget {
         );
       },
     );
-  }
+  } // widget
 }
 
 class _MemberCard extends StatelessWidget {

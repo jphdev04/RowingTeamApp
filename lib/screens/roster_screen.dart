@@ -33,17 +33,11 @@ class RosterScreen extends StatelessWidget {
             team: team,
             title: 'Team Roster',
             subtitle: 'Manage your team',
-            actions: [
-              IconButton(
-                icon: Icon(
-                  Icons.arrow_back,
-                  color: (team?.primaryColorObj.computeLuminance() ?? 0) > 0.5
-                      ? Colors.black
-                      : Colors.white,
-                ),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ],
+            leading: IconButton(
+              // ADD THIS
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
           ),
           Expanded(
             child: StreamBuilder<List<Membership>>(

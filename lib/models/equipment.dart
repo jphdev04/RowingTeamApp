@@ -1,4 +1,4 @@
-enum EquipmentType { shell, launch, coxbox, oars, erg }
+enum EquipmentType { shell, oar, coxbox, launch, erg }
 
 enum ShellType {
   eight, // 8+
@@ -79,7 +79,7 @@ class Equipment {
     switch (type) {
       case EquipmentType.shell:
         return '$name (${_getShellDisplayName()})';
-      case EquipmentType.oars:
+      case EquipmentType.oar:
         return '$name (${oarCount ?? 0} ${oarType?.name ?? ''} oars)';
       case EquipmentType.erg:
         return '$name (${ergType?.name ?? 'Erg'})';
