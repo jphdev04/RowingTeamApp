@@ -26,15 +26,14 @@ class OrganizationRosterScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: Column(
-        // CHANGE FROM JUST BODY TO COLUMN
         children: [
           TeamHeader(
-            // REPLACE APPBAR WITH THIS
             organization: organization,
             title: 'Organization Roster',
             subtitle: 'All members',
             leading: IconButton(
               icon: const Icon(Icons.arrow_back),
+              color: Colors.white,
               onPressed: () => Navigator.of(context).pop(),
             ),
           ),

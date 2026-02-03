@@ -1,52 +1,67 @@
+import 'package:flutter/material.dart';
+
 enum EquipmentType { shell, oar, coxbox, launch, erg }
 
 enum ShellType {
   eight, // 8+
-  four, // 4+ or 4x
+  coxedFour, // 4+
+  four, // 4-
   quad, // 4x
+  coxedQuad, // 4x+
+  pair, // 2-
   double, // 2x
   single, // 1x
-  pair, // 2-
 }
 
-enum OarType {
-  sweep, // Sweeping oars
-  scull, // Sculling oars
-}
+enum RiggingType { sweep, scull, dualRigged }
 
-enum ErgType {
-  rowErg, // Concept2 RowErg
-  bikeErg, // Concept2 BikeErg
-  rp3, // RowPerfect RP3
-}
+enum OarType { sweep, scull }
 
 enum EquipmentStatus { available, inUse, damaged, maintenance }
 
 class Equipment {
   final String id;
-  final String organizationId; // NEW - equipment belongs to org, not team
+  final String organizationId;
   final EquipmentType type;
-  final String name; // e.g., "Resolute", "Launch 1", "Cox Box A"
+  final String? name;
+  final String manufacturer;
+  final String? model;
+  final int? year;
+  final String? serialNumber;
+  final DateTime? purchaseDate;
+  final double? purchasePrice;
+  final String? notes;
+
+  // Team assignment
+  final bool availableToAllTeams;
+  final List<String> assignedTeamIds;
+
   final EquipmentStatus status;
   final DateTime createdAt;
   final DateTime? lastMaintenanceDate;
-  final String? notes;
 
   // Shell-specific fields
   final ShellType? shellType;
-  final int? seatCount; // For shells
-  final String? manufacturer; // e.g., "Vespoli", "Empacher"
-  final int? year;
+  final RiggingType? riggingType;
+  final String? currentRiggingSetup; // For dual-rigged shells
 
   // Oar-specific fields
   final OarType? oarType;
-  final int? oarCount; // Number of oars in the set (2, 4, 8)
+  final int? oarCount;
+  final String? bladeType;
   final double? oarLength; // in cm
 
+  // Coxbox-specific fields
+  final bool? microphoneIncluded;
+  final String? batteryStatus;
+
+  // Launch-specific fields
+  final bool? gasTankAssigned;
+  final String? tankNumber;
+  final String? fuelType;
+
   // Erg-specific fields
-  final ErgType? ergType;
-  final String? serialNumber;
-  final String? model; // e.g., "Model D", "RP3 Dynamic"
+  final String? ergId;
 
   // Damage tracking
   final bool isDamaged;
@@ -56,55 +71,78 @@ class Equipment {
     required this.id,
     required this.organizationId,
     required this.type,
-    required this.name,
+    this.name,
+    required this.manufacturer,
+    this.model,
+    this.year,
+    this.serialNumber,
+    this.purchaseDate,
+    this.purchasePrice,
+    this.notes,
+    this.availableToAllTeams = false,
+    this.assignedTeamIds = const [],
     this.status = EquipmentStatus.available,
     required this.createdAt,
     this.lastMaintenanceDate,
-    this.notes,
     this.shellType,
-    this.seatCount,
-    this.manufacturer,
-    this.year,
+    this.riggingType,
+    this.currentRiggingSetup,
     this.oarType,
     this.oarCount,
+    this.bladeType,
     this.oarLength,
-    this.ergType,
-    this.serialNumber,
-    this.model,
+    this.microphoneIncluded,
+    this.batteryStatus,
+    this.gasTankAssigned,
+    this.tankNumber,
+    this.fuelType,
+    this.ergId,
     this.isDamaged = false,
     this.damageReports = const [],
   });
 
   String get displayName {
+    if (name != null && name!.isNotEmpty) return name!;
+
     switch (type) {
       case EquipmentType.shell:
-        return '$name (${_getShellDisplayName()})';
+        return '${manufacturer} ${_shellTypeDisplay(shellType)}';
       case EquipmentType.oar:
-        return '$name (${oarCount ?? 0} ${oarType?.name ?? ''} oars)';
+        return '${manufacturer} ${_oarTypeDisplay(oarType)} Oars';
+      case EquipmentType.coxbox:
+        return '${manufacturer} Coxbox';
+      case EquipmentType.launch:
+        return '${manufacturer} Launch';
       case EquipmentType.erg:
-        return '$name (${ergType?.name ?? 'Erg'})';
-      default:
-        return name;
+        return ergId != null ? 'Erg #$ergId' : '${manufacturer} Erg';
     }
   }
 
-  String _getShellDisplayName() {
-    switch (shellType) {
+  String _shellTypeDisplay(ShellType? type) {
+    if (type == null) return 'Shell';
+    switch (type) {
       case ShellType.eight:
         return '8+';
+      case ShellType.coxedFour:
+        return '4+';
       case ShellType.four:
-        return '4+/4x';
+        return '4-';
       case ShellType.quad:
         return '4x';
+      case ShellType.coxedQuad:
+        return '4x+';
+      case ShellType.pair:
+        return '2-';
       case ShellType.double:
         return '2x';
       case ShellType.single:
         return '1x';
-      case ShellType.pair:
-        return '2-';
-      default:
-        return '';
     }
+  }
+
+  String _oarTypeDisplay(OarType? type) {
+    if (type == null) return '';
+    return type == OarType.sweep ? 'Sweep' : 'Scull';
   }
 
   Map<String, dynamic> toMap() {
@@ -113,20 +151,31 @@ class Equipment {
       'organizationId': organizationId,
       'type': type.name,
       'name': name,
+      'manufacturer': manufacturer,
+      'model': model,
+      'year': year,
+      'serialNumber': serialNumber,
+      'purchaseDate': purchaseDate?.toIso8601String(),
+      'purchasePrice': purchasePrice,
+      'notes': notes,
+      'availableToAllTeams': availableToAllTeams,
+      'assignedTeamIds': assignedTeamIds,
       'status': status.name,
       'createdAt': createdAt.toIso8601String(),
       'lastMaintenanceDate': lastMaintenanceDate?.toIso8601String(),
-      'notes': notes,
       'shellType': shellType?.name,
-      'seatCount': seatCount,
-      'manufacturer': manufacturer,
-      'year': year,
+      'riggingType': riggingType?.name,
+      'currentRiggingSetup': currentRiggingSetup,
       'oarType': oarType?.name,
       'oarCount': oarCount,
+      'bladeType': bladeType,
       'oarLength': oarLength,
-      'ergType': ergType?.name,
-      'serialNumber': serialNumber,
-      'model': model,
+      'microphoneIncluded': microphoneIncluded,
+      'batteryStatus': batteryStatus,
+      'gasTankAssigned': gasTankAssigned,
+      'tankNumber': tankNumber,
+      'fuelType': fuelType,
+      'ergId': ergId,
       'isDamaged': isDamaged,
       'damageReports': damageReports.map((r) => r.toMap()).toList(),
     };
@@ -140,7 +189,18 @@ class Equipment {
         (e) => e.name == map['type'],
         orElse: () => EquipmentType.shell,
       ),
-      name: map['name'] ?? '',
+      name: map['name'],
+      manufacturer: map['manufacturer'] ?? '',
+      model: map['model'],
+      year: map['year'],
+      serialNumber: map['serialNumber'],
+      purchaseDate: map['purchaseDate'] != null
+          ? DateTime.parse(map['purchaseDate'])
+          : null,
+      purchasePrice: map['purchasePrice']?.toDouble(),
+      notes: map['notes'],
+      availableToAllTeams: map['availableToAllTeams'] ?? false,
+      assignedTeamIds: List<String>.from(map['assignedTeamIds'] ?? []),
       status: EquipmentStatus.values.firstWhere(
         (e) => e.name == map['status'],
         orElse: () => EquipmentStatus.available,
@@ -149,23 +209,25 @@ class Equipment {
       lastMaintenanceDate: map['lastMaintenanceDate'] != null
           ? DateTime.parse(map['lastMaintenanceDate'])
           : null,
-      notes: map['notes'],
       shellType: map['shellType'] != null
           ? ShellType.values.firstWhere((e) => e.name == map['shellType'])
           : null,
-      seatCount: map['seatCount'],
-      manufacturer: map['manufacturer'],
-      year: map['year'],
+      riggingType: map['riggingType'] != null
+          ? RiggingType.values.firstWhere((e) => e.name == map['riggingType'])
+          : null,
+      currentRiggingSetup: map['currentRiggingSetup'],
       oarType: map['oarType'] != null
           ? OarType.values.firstWhere((e) => e.name == map['oarType'])
           : null,
       oarCount: map['oarCount'],
+      bladeType: map['bladeType'],
       oarLength: map['oarLength']?.toDouble(),
-      ergType: map['ergType'] != null
-          ? ErgType.values.firstWhere((e) => e.name == map['ergType'])
-          : null,
-      serialNumber: map['serialNumber'],
-      model: map['model'],
+      microphoneIncluded: map['microphoneIncluded'],
+      batteryStatus: map['batteryStatus'],
+      gasTankAssigned: map['gasTankAssigned'],
+      tankNumber: map['tankNumber'],
+      fuelType: map['fuelType'],
+      ergId: map['ergId'],
       isDamaged: map['isDamaged'] ?? false,
       damageReports:
           (map['damageReports'] as List<dynamic>?)
@@ -180,20 +242,31 @@ class Equipment {
     String? organizationId,
     EquipmentType? type,
     String? name,
+    String? manufacturer,
+    String? model,
+    int? year,
+    String? serialNumber,
+    DateTime? purchaseDate,
+    double? purchasePrice,
+    String? notes,
+    bool? availableToAllTeams,
+    List<String>? assignedTeamIds,
     EquipmentStatus? status,
     DateTime? createdAt,
     DateTime? lastMaintenanceDate,
-    String? notes,
     ShellType? shellType,
-    int? seatCount,
-    String? manufacturer,
-    int? year,
+    RiggingType? riggingType,
+    String? currentRiggingSetup,
     OarType? oarType,
     int? oarCount,
+    String? bladeType,
     double? oarLength,
-    ErgType? ergType,
-    String? serialNumber,
-    String? model,
+    bool? microphoneIncluded,
+    String? batteryStatus,
+    bool? gasTankAssigned,
+    String? tankNumber,
+    String? fuelType,
+    String? ergId,
     bool? isDamaged,
     List<DamageReport>? damageReports,
   }) {
@@ -202,20 +275,31 @@ class Equipment {
       organizationId: organizationId ?? this.organizationId,
       type: type ?? this.type,
       name: name ?? this.name,
+      manufacturer: manufacturer ?? this.manufacturer,
+      model: model ?? this.model,
+      year: year ?? this.year,
+      serialNumber: serialNumber ?? this.serialNumber,
+      purchaseDate: purchaseDate ?? this.purchaseDate,
+      purchasePrice: purchasePrice ?? this.purchasePrice,
+      notes: notes ?? this.notes,
+      availableToAllTeams: availableToAllTeams ?? this.availableToAllTeams,
+      assignedTeamIds: assignedTeamIds ?? this.assignedTeamIds,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       lastMaintenanceDate: lastMaintenanceDate ?? this.lastMaintenanceDate,
-      notes: notes ?? this.notes,
       shellType: shellType ?? this.shellType,
-      seatCount: seatCount ?? this.seatCount,
-      manufacturer: manufacturer ?? this.manufacturer,
-      year: year ?? this.year,
+      riggingType: riggingType ?? this.riggingType,
+      currentRiggingSetup: currentRiggingSetup ?? this.currentRiggingSetup,
       oarType: oarType ?? this.oarType,
       oarCount: oarCount ?? this.oarCount,
+      bladeType: bladeType ?? this.bladeType,
       oarLength: oarLength ?? this.oarLength,
-      ergType: ergType ?? this.ergType,
-      serialNumber: serialNumber ?? this.serialNumber,
-      model: model ?? this.model,
+      microphoneIncluded: microphoneIncluded ?? this.microphoneIncluded,
+      batteryStatus: batteryStatus ?? this.batteryStatus,
+      gasTankAssigned: gasTankAssigned ?? this.gasTankAssigned,
+      tankNumber: tankNumber ?? this.tankNumber,
+      fuelType: fuelType ?? this.fuelType,
+      ergId: ergId ?? this.ergId,
       isDamaged: isDamaged ?? this.isDamaged,
       damageReports: damageReports ?? this.damageReports,
     );
@@ -224,13 +308,13 @@ class Equipment {
 
 class DamageReport {
   final String id;
-  final String reportedBy; // Athlete ID
-  final String reportedByName; // Athlete name for display
+  final String reportedBy;
+  final String reportedByName;
   final DateTime reportedAt;
   final String description;
   final bool isResolved;
   final DateTime? resolvedAt;
-  final String? resolvedBy; // Coach ID who marked as resolved
+  final String? resolvedBy;
   final String? resolutionNotes;
 
   DamageReport({

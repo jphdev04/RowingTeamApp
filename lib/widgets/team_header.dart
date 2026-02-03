@@ -69,14 +69,8 @@ class TeamHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
+
           // Icon
-          Center(
-            child: Icon(
-              organization != null ? Icons.business : Icons.house_outlined,
-              size: 60,
-              color: textColor.withOpacity(0.3),
-            ),
-          ),
           const SizedBox(height: 16),
           // Title
           Text(

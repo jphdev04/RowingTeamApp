@@ -56,10 +56,9 @@ class EquipmentService {
   // Add equipment
   Future<void> addEquipment(Equipment equipment) async {
     try {
-      await _firestore
-          .collection(_collection)
-          .doc(equipment.id)
-          .set(equipment.toMap());
+      final docRef = _firestore.collection(_collection).doc(); // Generate ID
+      final equipmentWithId = equipment.copyWith(id: docRef.id); // Set the ID
+      await docRef.set(equipmentWithId.toMap());
     } catch (e) {
       throw 'Error adding equipment: $e';
     }

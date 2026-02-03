@@ -6,6 +6,7 @@ import '../models/organization.dart';
 import '../services/equipment_service.dart';
 import '../services/organization_service.dart';
 import '../widgets/team_header.dart';
+import 'add_equipment_screen.dart';
 
 class EquipmentScreen extends StatelessWidget {
   final String organizationId;
@@ -44,6 +45,7 @@ class EquipmentScreen extends StatelessWidget {
                 subtitle: 'Manage your gear',
                 leading: IconButton(
                   icon: const Icon(Icons.arrow_back),
+                  color: Colors.white,
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ),
@@ -312,16 +314,15 @@ class EquipmentScreen extends StatelessWidget {
           floatingActionButton: isCoach
               ? FloatingActionButton(
                   onPressed: () {
-                    // TODO: Navigate to add equipment screen
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Add equipment coming soon!'),
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => AddEquipmentScreen(
+                          organizationId: organizationId,
+                          organization: organization,
+                        ),
                       ),
                     );
                   },
-                  backgroundColor:
-                      team?.primaryColorObj ?? organization?.primaryColorObj,
-                  child: const Icon(Icons.add, color: Colors.white),
                 )
               : null,
         );

@@ -34,8 +34,8 @@ class RosterScreen extends StatelessWidget {
             title: 'Team Roster',
             subtitle: 'Manage your team',
             leading: IconButton(
-              // ADD THIS
               icon: const Icon(Icons.arrow_back),
+              color: Colors.white,
               onPressed: () => Navigator.of(context).pop(),
             ),
           ),
@@ -149,7 +149,6 @@ class RosterScreen extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // TODO: Show join code or invite screen
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Share join code to invite members')),
           );

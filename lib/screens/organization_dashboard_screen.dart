@@ -130,7 +130,11 @@ class _OrganizationDashboardContent extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [primaryColor, primaryColor.withOpacity(0.7)],
+                    colors: [
+                      organization?.primaryColorObj ?? primaryColor,
+                      organization?.secondaryColorObj ??
+                          primaryColor.withOpacity(0.7),
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -238,7 +242,7 @@ class _OrganizationDashboardContent extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: primaryColor,
+                        color: Colors.black,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -251,7 +255,9 @@ class _OrganizationDashboardContent extends StatelessWidget {
                             title: 'All Members',
                             subtitle: 'Organization roster',
                             icon: Icons.people,
-                            color: primaryColor,
+                            color:
+                                organization?.primaryColorObj ??
+                                const Color(0xFF6A1B9A),
                             onTap: () {
                               if (organization != null) {
                                 Navigator.of(context).push(
