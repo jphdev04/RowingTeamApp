@@ -44,7 +44,7 @@ class JoinRequestService {
         .collection(_collection)
         .where('organizationId', isEqualTo: orgId)
         .where('isPending', isEqualTo: true)
-        .orderBy('requestedAt', descending: true)
+        // .orderBy('requestedAt', descending: true)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs
@@ -58,7 +58,7 @@ class JoinRequestService {
     return _firestore
         .collection(_collection)
         .where('userId', isEqualTo: userId)
-        .orderBy('requestedAt', descending: true)
+        // .orderBy('requestedAt', descending: true)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs

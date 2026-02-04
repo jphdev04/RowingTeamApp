@@ -4,11 +4,23 @@ import '../models/organization.dart';
 import '../services/organization_service.dart';
 import '../widgets/team_header.dart';
 import 'package:flex_color_picker/flex_color_picker.dart';
+import '../services/auth_service.dart';
+import '../services/auth_service.dart';
+import '../models/user.dart';
+import '../models/membership.dart';
+import 'edit_profile_screen.dart';
 
 class OrganizationSettingsScreen extends StatefulWidget {
   final Organization organization;
+  final AppUser user;
+  final Membership membership;
 
-  const OrganizationSettingsScreen({super.key, required this.organization});
+  const OrganizationSettingsScreen({
+    super.key,
+    required this.organization,
+    required this.user,
+    required this.membership,
+  });
 
   @override
   State<OrganizationSettingsScreen> createState() =>
@@ -510,6 +522,153 @@ class _OrganizationSettingsScreenState
                         side: const BorderSide(color: Colors.red),
                       ),
                     ),
+                    const SizedBox(height: 32),
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _saveSettings,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: widget.organization.primaryColorObj,
+                      ),
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text(
+                              'Save Changes',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                              ),
+                            ),
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    const Divider(thickness: 2),
+
+                    const SizedBox(height: 24),
+
+                    // PERSONAL SETTINGS
+                    const Text(
+                      'Personal Settings',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    Card(
+                      child: Column(
+                        children: [
+                          ListTile(
+                            leading: const Icon(Icons.person),
+                            title: const Text('Edit Profile'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () async {
+                              final result = await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => EditProfileScreen(
+                                    user: widget.user,
+                                    membership: widget.membership,
+                                    team: null, // No team in org view
+                                  ),
+                                ),
+                              );
+                              if (result == true && mounted) {
+                                setState(() {});
+                              }
+                            },
+                          ),
+                          const Divider(),
+                          ListTile(
+                            leading: const Icon(Icons.notifications),
+                            title: const Text('Notifications'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Coming soon!')),
+                              );
+                            },
+                          ),
+                          const Divider(),
+                          ListTile(
+                            leading: const Icon(Icons.help),
+                            title: const Text('Help & Support'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Coming soon!')),
+                              );
+                            },
+                          ),
+                          const Divider(),
+                          ListTile(
+                            leading: const Icon(Icons.info),
+                            title: const Text('About'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () {
+                              showAboutDialog(
+                                context: context,
+                                applicationName: 'The Boathouse',
+                                applicationVersion: '2.0.0',
+                                applicationLegalese: '© 2026 The Boathouse',
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Sign Out Button
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Sign Out?'),
+                            content: const Text(
+                              'Are you sure you want to sign out?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.of(context).pop(false),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.of(context).pop(true),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                ),
+                                child: const Text('Sign Out'),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (confirm == true) {
+                          await AuthService().signOut();
+                          if (context.mounted) {
+                            Navigator.of(
+                              context,
+                            ).pushNamedAndRemoveUntil('/', (route) => false);
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.logout, color: Colors.red),
+                      label: const Text(
+                        'Sign Out',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: const BorderSide(color: Colors.red),
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),

@@ -12,6 +12,7 @@ import 'organization_roster_screen.dart';
 import 'team_selector_screen.dart';
 import 'team_management_screen.dart';
 import 'organization_settings_screen.dart';
+import 'join_requests_screen.dart';
 
 class OrganizationDashboardScreen extends StatefulWidget {
   const OrganizationDashboardScreen({super.key});
@@ -180,6 +181,8 @@ class _OrganizationDashboardContent extends StatelessWidget {
                                   builder: (context) =>
                                       OrganizationSettingsScreen(
                                         organization: organization!,
+                                        user: user,
+                                        membership: currentMembership,
                                       ),
                                 ),
                               );
@@ -367,13 +370,20 @@ class _OrganizationDashboardContent extends StatelessWidget {
                             title: 'Join Requests',
                             subtitle: 'Approve members',
                             icon: Icons.person_add,
-                            color: primaryColor,
+                            color:
+                                organization?.primaryColorObj ??
+                                const Color(0xFF6A1B9A),
                             onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Join requests coming soon!'),
-                                ),
-                              );
+                              if (organization != null) {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => JoinRequestsScreen(
+                                      organizationId: organization!.id,
+                                      organization: organization!,
+                                    ),
+                                  ),
+                                );
+                              }
                             },
                           ),
                         ),
