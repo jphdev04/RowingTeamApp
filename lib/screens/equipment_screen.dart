@@ -7,6 +7,7 @@ import '../services/equipment_service.dart';
 import '../services/organization_service.dart';
 import '../widgets/team_header.dart';
 import 'add_equipment_screen.dart';
+import 'equipment_list_screen.dart';
 
 class EquipmentScreen extends StatelessWidget {
   final String organizationId;
@@ -89,6 +90,14 @@ class EquipmentScreen extends StatelessWidget {
                                       .where(
                                         (e) => e.type == EquipmentType.shell,
                                       )
+                                      .where(
+                                        (e) =>
+                                            team == null ||
+                                            e.availableToAllTeams ||
+                                            e.assignedTeamIds.contains(
+                                              team!.id,
+                                            ),
+                                      )
                                       .length,
                                   color:
                                       team?.primaryColorObj ??
@@ -116,14 +125,22 @@ class EquipmentScreen extends StatelessWidget {
                               Expanded(
                                 child: _EquipmentCategoryCard(
                                   title: 'Oars',
-                                  icon: Icons.rowing,
+                                  icon: Icons.sports,
                                   count: allEquipment
                                       .where((e) => e.type == EquipmentType.oar)
+                                      .where(
+                                        (e) =>
+                                            team == null ||
+                                            e.availableToAllTeams ||
+                                            e.assignedTeamIds.contains(
+                                              team!.id,
+                                            ),
+                                      )
                                       .length,
                                   color:
                                       team?.primaryColorObj ??
                                       organization?.primaryColorObj ??
-                                      Colors.blue,
+                                      Colors.orange,
                                   onTap: () {
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
@@ -152,16 +169,24 @@ class EquipmentScreen extends StatelessWidget {
                               Expanded(
                                 child: _EquipmentCategoryCard(
                                   title: 'Coxboxes',
-                                  icon: Icons.volume_up,
+                                  icon: Icons.speaker,
                                   count: allEquipment
                                       .where(
                                         (e) => e.type == EquipmentType.coxbox,
+                                      )
+                                      .where(
+                                        (e) =>
+                                            team == null ||
+                                            e.availableToAllTeams ||
+                                            e.assignedTeamIds.contains(
+                                              team!.id,
+                                            ),
                                       )
                                       .length,
                                   color:
                                       team?.primaryColorObj ??
                                       organization?.primaryColorObj ??
-                                      Colors.blue,
+                                      Colors.purple,
                                   onTap: () {
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
@@ -184,16 +209,24 @@ class EquipmentScreen extends StatelessWidget {
                               Expanded(
                                 child: _EquipmentCategoryCard(
                                   title: 'Launches',
-                                  icon: Icons.waves,
+                                  icon: Icons.directions_boat,
                                   count: allEquipment
                                       .where(
                                         (e) => e.type == EquipmentType.launch,
+                                      )
+                                      .where(
+                                        (e) =>
+                                            team == null ||
+                                            e.availableToAllTeams ||
+                                            e.assignedTeamIds.contains(
+                                              team!.id,
+                                            ),
                                       )
                                       .length,
                                   color:
                                       team?.primaryColorObj ??
                                       organization?.primaryColorObj ??
-                                      Colors.blue,
+                                      Colors.teal,
                                   onTap: () {
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
@@ -223,14 +256,22 @@ class EquipmentScreen extends StatelessWidget {
                               Expanded(
                                 child: _EquipmentCategoryCard(
                                   title: 'Ergs',
-                                  icon: Icons.monitor_heart,
+                                  icon: Icons.fitness_center,
                                   count: allEquipment
                                       .where((e) => e.type == EquipmentType.erg)
+                                      .where(
+                                        (e) =>
+                                            team == null ||
+                                            e.availableToAllTeams ||
+                                            e.assignedTeamIds.contains(
+                                              team!.id,
+                                            ),
+                                      )
                                       .length,
                                   color:
                                       team?.primaryColorObj ??
                                       organization?.primaryColorObj ??
-                                      Colors.blue,
+                                      Colors.red,
                                   onTap: () {
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
@@ -249,9 +290,7 @@ class EquipmentScreen extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              const Expanded(
-                                child: SizedBox(),
-                              ), // Empty space for alignment
+                              const Expanded(child: SizedBox()),
                             ],
                           ),
 
@@ -261,43 +300,151 @@ class EquipmentScreen extends StatelessWidget {
                           Card(
                             child: Padding(
                               padding: const EdgeInsets.all(20),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceAround,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _StatItem(
-                                    label: 'Total',
-                                    value: allEquipment.length.toString(),
-                                    color: Colors.blue,
+                                  const Text(
+                                    'Equipment Status',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                  _StatItem(
-                                    label: 'Available',
-                                    value: allEquipment
-                                        .where(
-                                          (e) =>
-                                              e.status ==
-                                              EquipmentStatus.available,
-                                        )
-                                        .length
-                                        .toString(),
-                                    color: Colors.green,
-                                  ),
-                                  _StatItem(
-                                    label: 'Damaged',
-                                    value: damagedEquipment.length.toString(),
-                                    color: Colors.red,
-                                  ),
-                                  _StatItem(
-                                    label: 'Maintenance',
-                                    value: allEquipment
-                                        .where(
-                                          (e) =>
-                                              e.status ==
-                                              EquipmentStatus.maintenance,
-                                        )
-                                        .length
-                                        .toString(),
-                                    color: Colors.orange,
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceAround,
+                                    children: [
+                                      _CriticalStatItem(
+                                        icon: Icons.check_circle,
+                                        label: 'Ready',
+                                        value: allEquipment
+                                            .where(
+                                              (e) =>
+                                                  team == null ||
+                                                  e.availableToAllTeams ||
+                                                  e.assignedTeamIds.contains(
+                                                    team!.id,
+                                                  ),
+                                            )
+                                            .where(
+                                              (e) =>
+                                                  e.status ==
+                                                  EquipmentStatus.available,
+                                            )
+                                            .length
+                                            .toString(),
+                                        color: Colors.green,
+                                      ),
+                                      if (allEquipment
+                                          .where(
+                                            (e) =>
+                                                team == null ||
+                                                e.availableToAllTeams ||
+                                                e.assignedTeamIds.contains(
+                                                  team!.id,
+                                                ),
+                                          )
+                                          .where(
+                                            (e) =>
+                                                e.status ==
+                                                EquipmentStatus.damaged,
+                                          )
+                                          .isNotEmpty)
+                                        _CriticalStatItem(
+                                          icon: Icons.warning,
+                                          label: 'Damaged',
+                                          value: allEquipment
+                                              .where(
+                                                (e) =>
+                                                    team == null ||
+                                                    e.availableToAllTeams ||
+                                                    e.assignedTeamIds.contains(
+                                                      team!.id,
+                                                    ),
+                                              )
+                                              .where(
+                                                (e) =>
+                                                    e.status ==
+                                                    EquipmentStatus.damaged,
+                                              )
+                                              .length
+                                              .toString(),
+                                          color: Colors.red,
+                                        ),
+                                      if (allEquipment
+                                          .where(
+                                            (e) =>
+                                                team == null ||
+                                                e.availableToAllTeams ||
+                                                e.assignedTeamIds.contains(
+                                                  team!.id,
+                                                ),
+                                          )
+                                          .where(
+                                            (e) =>
+                                                e.status ==
+                                                EquipmentStatus.maintenance,
+                                          )
+                                          .isNotEmpty)
+                                        _CriticalStatItem(
+                                          icon: Icons.build,
+                                          label: 'Maintenance',
+                                          value: allEquipment
+                                              .where(
+                                                (e) =>
+                                                    team == null ||
+                                                    e.availableToAllTeams ||
+                                                    e.assignedTeamIds.contains(
+                                                      team!.id,
+                                                    ),
+                                              )
+                                              .where(
+                                                (e) =>
+                                                    e.status ==
+                                                    EquipmentStatus.maintenance,
+                                              )
+                                              .length
+                                              .toString(),
+                                          color: Colors.orange,
+                                        ),
+                                      if (allEquipment
+                                          .where(
+                                            (e) =>
+                                                team == null ||
+                                                e.availableToAllTeams ||
+                                                e.assignedTeamIds.contains(
+                                                  team!.id,
+                                                ),
+                                          )
+                                          .where(
+                                            (e) =>
+                                                e.status ==
+                                                EquipmentStatus.inUse,
+                                          )
+                                          .isNotEmpty)
+                                        _CriticalStatItem(
+                                          icon: Icons.timelapse,
+                                          label: 'In Use',
+                                          value: allEquipment
+                                              .where(
+                                                (e) =>
+                                                    team == null ||
+                                                    e.availableToAllTeams ||
+                                                    e.assignedTeamIds.contains(
+                                                      team!.id,
+                                                    ),
+                                              )
+                                              .where(
+                                                (e) =>
+                                                    e.status ==
+                                                    EquipmentStatus.inUse,
+                                              )
+                                              .length
+                                              .toString(),
+                                          color: Colors.blue,
+                                        ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -319,10 +466,15 @@ class EquipmentScreen extends StatelessWidget {
                         builder: (context) => AddEquipmentScreen(
                           organizationId: organizationId,
                           organization: organization,
+                          team: team,
                         ),
                       ),
                     );
                   },
+                  backgroundColor:
+                      team?.primaryColorObj ?? organization?.primaryColorObj,
+                  foregroundColor: Colors.white,
+                  child: const Icon(Icons.add),
                 )
               : null,
         );
@@ -378,7 +530,7 @@ class _EquipmentCategoryCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '$count items',
+                '$count ${count == 1 ? 'item' : 'items'}',
                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
             ],
@@ -419,28 +571,43 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-// Placeholder for EquipmentListScreen
-class EquipmentListScreen extends StatelessWidget {
-  final String organizationId;
-  final Team? team;
-  final Membership? currentMembership;
-  final EquipmentType equipmentType;
-  final String title;
+class _CriticalStatItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
 
-  const EquipmentListScreen({
-    super.key,
-    required this.organizationId,
-    this.team,
-    this.currentMembership,
-    required this.equipmentType,
-    required this.title,
+  const _CriticalStatItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: const Center(child: Text('Equipment list coming soon!')),
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 28),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+      ],
     );
   }
 }

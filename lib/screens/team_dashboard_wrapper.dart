@@ -11,6 +11,7 @@ import 'settings_screen.dart';
 import 'equipment_screen.dart';
 import 'roster_screen.dart';
 import 'team_selector_screen.dart';
+import 'report_damage_screen.dart';
 
 class TeamDashboardView extends StatelessWidget {
   final Team team;
@@ -358,15 +359,19 @@ class _TeamDashboardContent extends StatelessWidget {
                           const SizedBox(width: 12),
                           Expanded(
                             child: _DashboardCard(
-                              title: 'Equipment',
-                              subtitle: 'Report damage',
+                              title: 'Report Damage',
+                              subtitle: 'Equipment issues',
                               icon: Icons.warning,
                               color: primaryColor,
                               onTap: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Equipment reporting coming soon!',
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => ReportDamageScreen(
+                                      organizationId: organization!.id,
+                                      userId: user.id,
+                                      userName: user.name,
+                                      team: team,
+                                      organization: organization,
                                     ),
                                   ),
                                 );

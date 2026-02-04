@@ -60,14 +60,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             final memberships = membershipsSnapshot.data ?? [];
 
             if (memberships.isEmpty) {
-              // Add debug info here
-              print('DEBUG: No memberships found');
-              print('DEBUG: User ID: $userId');
-              print('DEBUG: Current Org ID: ${user.currentOrganizationId}');
-              print(
-                'DEBUG: Current Membership ID: ${user.currentMembershipId}',
-              );
-
               return Scaffold(
                 body: Center(
                   child: Padding(

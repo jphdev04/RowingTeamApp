@@ -6,11 +6,10 @@ class EquipmentService {
   final String _collection = 'equipment';
 
   // Get all equipment for a team
-  Stream<List<Equipment>> getEquipmentByTeam(String teamId) {
+  Stream<List<Equipment>> getEquipmentByTeam(String organizationId) {
     return _firestore
         .collection(_collection)
-        .where('teamId', isEqualTo: teamId)
-        .orderBy('name')
+        .where('organizationId', isEqualTo: organizationId)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs
@@ -77,9 +76,9 @@ class EquipmentService {
   }
 
   // Delete equipment
-  Future<void> deleteEquipment(String id) async {
+  Future<void> deleteEquipment(String equipmentId) async {
     try {
-      await _firestore.collection(_collection).doc(id).delete();
+      await _firestore.collection(_collection).doc(equipmentId).delete();
     } catch (e) {
       throw 'Error deleting equipment: $e';
     }
