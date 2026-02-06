@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:hello_rowing/screens/edit_profile_screen.dart';
+import 'package:hello_rowing/screens/report_damage_screen.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import '../services/membership_service.dart';
@@ -11,6 +13,8 @@ import '../models/team.dart';
 import 'settings_screen.dart';
 import 'equipment_screen.dart';
 import 'team_selector_screen.dart';
+import 'onboarding_screen.dart';
+import 'login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -46,7 +50,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           );
         }
 
-        // Get user's memberships
         return StreamBuilder<List<Membership>>(
           stream: _membershipService.getUserMemberships(userId),
           builder: (context, membershipsSnapshot) {
@@ -60,47 +63,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             final memberships = membershipsSnapshot.data ?? [];
 
             if (memberships.isEmpty) {
-              return Scaffold(
-                body: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.group_off,
-                          size: 80,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'No Memberships',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'You haven\'t joined any organizations yet.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: () {
-                            // TODO: Navigate to join organization
-                          },
-                          child: const Text('Join an Organization'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
+              return _buildEmptyState(context, user);
             }
 
-            // Find current membership or use first one
             Membership currentMembership;
             if (user.currentMembershipId != null) {
               currentMembership = memberships.firstWhere(
@@ -111,7 +76,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               currentMembership = memberships.first;
             }
 
-            // Load organization and team data
             return FutureBuilder<Organization?>(
               future: _orgService.getOrganization(
                 currentMembership.organizationId,
@@ -124,11 +88,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 }
 
                 final organization = orgSnapshot.data;
+                final organizationId = organization!.id;
 
                 String? teamIdToLoad = currentMembership.teamId;
 
-                // If admin with no teamId, check if we're supposed to view a specific team
-                // This will be passed through navigation
                 final modalRoute = ModalRoute.of(context);
                 if (teamIdToLoad == null &&
                     currentMembership.role == MembershipRole.admin &&
@@ -139,7 +102,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 }
 
                 if (teamIdToLoad != null) {
-                  // Load team data
                   return FutureBuilder<Team?>(
                     future: _teamService.getTeam(teamIdToLoad),
                     builder: (context, teamSnapshot) {
@@ -150,6 +112,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         memberships: memberships,
                         currentMembership: currentMembership,
                         organization: organization,
+                        organizationId: organizationId,
                         team: team,
                         onMembershipChanged: (newMembership) async {
                           await _userService.updateCurrentContext(
@@ -162,12 +125,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     },
                   );
                 } else {
-                  // No team - individual member
                   return _DashboardContent(
                     user: user,
                     memberships: memberships,
                     currentMembership: currentMembership,
                     organization: organization,
+                    organizationId: organizationId,
                     team: null,
                     onMembershipChanged: (newMembership) async {
                       await _userService.updateCurrentContext(
@@ -185,6 +148,102 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
     );
   }
+
+  Widget _buildEmptyState(BuildContext context, AppUser user) {
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            children: [
+              // Top bar with sign out
+              Align(
+                alignment: Alignment.topRight,
+                child: TextButton.icon(
+                  onPressed: () => _showSignOutDialog(context),
+                  icon: const Icon(Icons.logout, color: Colors.red, size: 20),
+                  label: const Text(
+                    'Sign Out',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+              ),
+
+              const Spacer(),
+
+              const Icon(Icons.house_outlined, size: 80, color: Colors.grey),
+              const SizedBox(height: 24),
+              const Text(
+                'Welcome to The Boathouse',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'You haven\'t joined any organizations yet.\nGet started by joining or creating one.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => OnboardingScreen(user: user),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.group_add),
+                  label: const Text(
+                    'Join or Create an Organization',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+
+              const Spacer(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showSignOutDialog(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && context.mounted) {
+      await _authService.signOut();
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    }
+  }
 }
 
 class _DashboardContent extends StatelessWidget {
@@ -194,6 +253,7 @@ class _DashboardContent extends StatelessWidget {
   final Organization? organization;
   final Team? team;
   final Function(Membership) onMembershipChanged;
+  final String organizationId;
 
   const _DashboardContent({
     required this.user,
@@ -202,13 +262,13 @@ class _DashboardContent extends StatelessWidget {
     required this.organization,
     required this.team,
     required this.onMembershipChanged,
+    required this.organizationId,
   });
 
   bool get isAdmin => currentMembership.role == MembershipRole.admin;
   bool get isCoach => currentMembership.role == MembershipRole.coach || isAdmin;
 
   String _getRoleDisplayName() {
-    String roleName = currentMembership.displayName;
     if (currentMembership.customTitle != null) {
       return currentMembership.customTitle!;
     }
@@ -236,7 +296,6 @@ class _DashboardContent extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with organization/team switcher
               Container(
                 width: double.infinity,
                 padding: EdgeInsets.fromLTRB(
@@ -259,11 +318,9 @@ class _DashboardContent extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Top row: Role switcher + Settings
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Team switcher button (if multiple memberships)
                         if (memberships.length > 1 ||
                             currentMembership.role == MembershipRole.admin)
                           TextButton.icon(
@@ -316,10 +373,7 @@ class _DashboardContent extends StatelessWidget {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 16),
-
-                    // Boathouse icon
                     Center(
                       child: Icon(
                         Icons.house_outlined,
@@ -330,8 +384,6 @@ class _DashboardContent extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // Welcome message
                     Text(
                       'Welcome back,',
                       style: TextStyle(
@@ -352,8 +404,6 @@ class _DashboardContent extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
-                    // Organization and team name
                     if (organization != null) ...[
                       const SizedBox(height: 8),
                       Text(
@@ -382,8 +432,6 @@ class _DashboardContent extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // Main navigation cards
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -398,10 +446,7 @@ class _DashboardContent extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // Navigation based on role
                     if (isCoach || isAdmin) ...[
-                      // Admin/Coach view
                       Row(
                         children: [
                           Expanded(
@@ -411,7 +456,6 @@ class _DashboardContent extends StatelessWidget {
                               icon: Icons.people,
                               color: primaryColor,
                               onTap: () {
-                                // TODO: Navigate to roster
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text('Roster coming soon!'),
@@ -432,8 +476,7 @@ class _DashboardContent extends StatelessWidget {
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (context) => EquipmentScreen(
-                                        organizationId:
-                                            organization!.id, // Add the ! here
+                                        organizationId: organization!.id,
                                         team: team,
                                         currentMembership: currentMembership,
                                       ),
@@ -446,7 +489,6 @@ class _DashboardContent extends StatelessWidget {
                         ],
                       ),
                     ] else ...[
-                      // Athlete view
                       Row(
                         children: [
                           Expanded(
@@ -458,10 +500,9 @@ class _DashboardContent extends StatelessWidget {
                               onTap: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (context) => SettingsScreen(
+                                    builder: (context) => EditProfileScreen(
                                       user: user,
                                       membership: currentMembership,
-                                      organization: organization,
                                       team: team,
                                     ),
                                   ),
@@ -477,10 +518,15 @@ class _DashboardContent extends StatelessWidget {
                               icon: Icons.warning,
                               color: primaryColor,
                               onTap: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Equipment reporting coming soon!',
+                                debugPrint("Dashboard team: ${team?.name}");
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => ReportDamageScreen(
+                                      userId: user.id,
+                                      organization: organization,
+                                      organizationId: organizationId,
+                                      userName: user.name,
+                                      team: team,
                                     ),
                                   ),
                                 );
@@ -490,10 +536,7 @@ class _DashboardContent extends StatelessWidget {
                         ],
                       ),
                     ],
-
                     const SizedBox(height: 12),
-
-                    // Common cards for all roles
                     Row(
                       children: [
                         Expanded(
@@ -533,9 +576,7 @@ class _DashboardContent extends StatelessWidget {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 12),
-
                     Row(
                       children: [
                         Expanded(

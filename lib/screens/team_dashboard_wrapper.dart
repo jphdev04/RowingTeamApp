@@ -370,8 +370,8 @@ class _TeamDashboardContent extends StatelessWidget {
                                       organizationId: organization!.id,
                                       userId: user.id,
                                       userName: user.name,
-                                      team: team,
                                       organization: organization,
+                                      team: team,
                                     ),
                                   ),
                                 );

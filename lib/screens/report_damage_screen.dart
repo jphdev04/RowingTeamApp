@@ -9,16 +9,16 @@ class ReportDamageScreen extends StatefulWidget {
   final String organizationId;
   final String userId;
   final String userName;
-  final Team team;
   final Organization? organization;
+  final Team? team;
 
   const ReportDamageScreen({
     super.key,
     required this.organizationId,
     required this.userId,
     required this.userName,
-    required this.team,
     this.organization,
+    this.team,
   });
 
   @override
@@ -98,8 +98,18 @@ class _ReportDamageScreenState extends State<ReportDamageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = widget.team.primaryColorObj;
-    final secondaryColor = widget.team.secondaryColorObj;
+    final primaryColor =
+        widget.team?.primaryColorObj ??
+        widget.organization?.primaryColorObj ??
+        Colors.black;
+    final secondaryColor =
+        widget.team?.secondaryColorObj ??
+        widget.organization?.secondaryColorObj ??
+        Colors.grey;
+
+    debugPrint("Team name: ${widget.team?.name}");
+    debugPrint("Team primaryColorObj: ${widget.team?.primaryColorObj}");
+    debugPrint("Org primaryColorObj: ${widget.organization?.primaryColorObj}");
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -205,10 +215,6 @@ class _ReportDamageScreenState extends State<ReportDamageScreen> {
                         var equipment = snapshot.data ?? [];
 
                         // Filter by team
-                        equipment = equipment.where((e) {
-                          return e.availableToAllTeams ||
-                              e.assignedTeamIds.contains(widget.team.id);
-                        }).toList();
 
                         // Sort by type then name
                         equipment.sort((a, b) {

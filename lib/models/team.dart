@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class Team {
   final String id;
-  final String organizationId; // Changed from standalone to org-based
+  final String organizationId;
   final String name;
   final String? description;
   final List<String> headCoachIds;
@@ -27,6 +27,16 @@ class Team {
 
   Color get primaryColorObj => Color(primaryColor);
   Color get secondaryColorObj => Color(secondaryColor);
+
+  // Required for DropdownButtonFormField to match items correctly
+  // when StreamBuilder rebuilds with new Team instances from Firestore
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Team && runtimeType == other.runtimeType && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 
   Map<String, dynamic> toMap() {
     return {
