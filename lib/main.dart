@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hello_rowing/screens/main_shell.dart';
 import 'services/auth_service.dart';
 import 'services/user_service.dart';
 import 'models/user.dart';
@@ -10,7 +11,6 @@ import 'screens/onboarding_screen.dart';
 import 'services/membership_service.dart';
 import 'models/membership.dart';
 import 'screens/team_selector_screen.dart';
-import 'screens/organization_dashboard_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -128,7 +128,7 @@ class AuthWrapper extends StatelessWidget {
                   // Check if this is an admin with no team (organization view)
                   if (currentMembership.role == MembershipRole.admin &&
                       currentMembership.teamId == null) {
-                    return const OrganizationDashboardScreen();
+                    return const MainShell();
                   }
 
                   // Regular team view

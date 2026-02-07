@@ -1,0 +1,268 @@
+import 'package:flutter/material.dart';
+import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/intl.dart';
+import '../models/user.dart';
+import '../models/membership.dart';
+import '../models/organization.dart';
+import '../models/team.dart';
+import '../models/calendar_event.dart';
+import '../services/calendar_service.dart';
+import '../widgets/team_header.dart';
+import '../screens/add_event_screen.dart';
+
+class CalendarTab extends StatefulWidget {
+  final AppUser user;
+  final Membership currentMembership;
+  final Organization? organization;
+  final Team? team;
+
+  const CalendarTab({
+    super.key,
+    required this.user,
+    required this.currentMembership,
+    required this.organization,
+    required this.team,
+  });
+
+  @override
+  State<CalendarTab> createState() => _CalendarTabState();
+}
+
+class _CalendarTabState extends State<CalendarTab> {
+  final _calendarService = CalendarService();
+  CalendarFormat _calendarFormat = CalendarFormat.month;
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+  Map<DateTime, List<CalendarEvent>> _groupedEvents = {};
+  late final ValueNotifier<List<CalendarEvent>> _selectedEvents;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDay = _focusedDay;
+    _selectedEvents = ValueNotifier([]);
+  }
+
+  @override
+  void dispose() {
+    _selectedEvents.dispose();
+    super.dispose();
+  }
+
+  bool get _canEdit {
+    final role = widget.currentMembership.role;
+    // Explicitly allowing only Admin and Coach
+    return role == MembershipRole.admin || role == MembershipRole.coach;
+  }
+
+  Map<DateTime, List<CalendarEvent>> _groupEvents(List<CalendarEvent> events) {
+    Map<DateTime, List<CalendarEvent>> data = {};
+    for (var event in events) {
+      bool shouldShow = false;
+
+      if (widget.team != null) {
+        // TEAM VIEW: Show if it's for this team OR if it's an organization event
+        if (event.teamId == widget.team!.id ||
+            event.type == EventType.organization) {
+          shouldShow = true;
+        }
+      } else {
+        // ORG VIEW: Show everything (Admins usually want the bird's eye view)
+        shouldShow = true;
+      }
+
+      if (shouldShow) {
+        final date = _normalizeDate(event.startTime);
+        data.putIfAbsent(date, () => []).add(event);
+      }
+    }
+    return data;
+  }
+
+  DateTime _normalizeDate(DateTime date) {
+    return DateTime.utc(date.year, date.month, date.day);
+  }
+
+  List<CalendarEvent> _getEventsForDay(DateTime day) {
+    return _groupedEvents[_normalizeDate(day)] ?? [];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final headerTextColor =
+        (widget.team?.primaryColorObj ??
+                    widget.organization?.primaryColorObj ??
+                    const Color(0xFF1976D2))
+                .computeLuminance() >
+            0.5
+        ? Colors.black
+        : Colors.white;
+
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      body: Column(
+        children: [
+          // 1. Team Header Widget
+          TeamHeader(
+            team: widget.team,
+            organization: widget.organization,
+            title: 'Schedule',
+            subtitle: widget.team != null
+                ? widget.team!.name
+                : widget.organization?.name,
+            actions: [
+              // Jump to today button
+              IconButton(
+                icon: Icon(Icons.today, color: headerTextColor),
+                onPressed: () {
+                  setState(() {
+                    _focusedDay = DateTime.now();
+                    _selectedDay = DateTime.now();
+                  });
+                },
+              ),
+              // Add Event button (Coach/Admin only)
+              if (_canEdit)
+                IconButton(
+                  icon: Icon(Icons.add_circle_outline, color: headerTextColor),
+                  onPressed: () => _showAddEventDialog(),
+                ),
+            ],
+          ),
+
+          // 2. Main Body with Stream
+          Expanded(
+            child: StreamBuilder<List<CalendarEvent>>(
+              stream: _calendarService.getOrganizationEvents(
+                widget.organization!.id,
+              ),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final events = snapshot.data ?? [];
+                _groupedEvents = _groupEvents(events);
+
+                // Update the event list if data refreshed
+                if (_selectedDay != null) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _selectedEvents.value = _getEventsForDay(_selectedDay!);
+                  });
+                }
+
+                return Column(
+                  children: [
+                    _buildTableCalendar(),
+                    const Divider(height: 1),
+                    Expanded(child: _buildEventList()),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTableCalendar() {
+    final primaryColor =
+        widget.team?.primaryColorObj ??
+        widget.organization?.primaryColorObj ??
+        const Color(0xFF1976D2);
+
+    return Container(
+      color: Colors.white,
+      child: TableCalendar<CalendarEvent>(
+        firstDay: DateTime.utc(2024, 1, 1),
+        lastDay: DateTime.utc(2030, 12, 31),
+        focusedDay: _focusedDay,
+        selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+        calendarFormat: _calendarFormat,
+        eventLoader: _getEventsForDay,
+        startingDayOfWeek: StartingDayOfWeek.monday,
+        headerStyle: const HeaderStyle(
+          formatButtonVisible: false, // Cleaner look since we use TeamHeader
+          titleCentered: true,
+        ),
+        calendarStyle: CalendarStyle(
+          selectedDecoration: BoxDecoration(
+            color: primaryColor,
+            shape: BoxShape.circle,
+          ),
+          todayDecoration: BoxDecoration(
+            color: primaryColor.withOpacity(0.4),
+            shape: BoxShape.circle,
+          ),
+          markerDecoration: BoxDecoration(
+            color: widget.team?.secondaryColorObj ?? Colors.blueGrey,
+            shape: BoxShape.circle,
+          ),
+        ),
+        onDaySelected: (selectedDay, focusedDay) {
+          setState(() {
+            _selectedDay = selectedDay;
+            _focusedDay = focusedDay;
+          });
+          _selectedEvents.value = _getEventsForDay(selectedDay);
+        },
+        onPageChanged: (focusedDay) => _focusedDay = focusedDay,
+      ),
+    );
+  }
+
+  Widget _buildEventList() {
+    return ValueListenableBuilder<List<CalendarEvent>>(
+      valueListenable: _selectedEvents,
+      builder: (context, value, _) {
+        if (value.isEmpty) {
+          return Center(
+            child: Text(
+              'No events scheduled',
+              style: TextStyle(color: Colors.grey[400]),
+            ),
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.only(top: 8, bottom: 24),
+          itemCount: value.length,
+          itemBuilder: (context, index) => _buildEventCard(value[index]),
+        );
+      },
+    );
+  }
+
+  Widget _buildEventCard(CalendarEvent event) {
+    // ... (Keep your previous _buildEventCard logic here)
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: ListTile(
+        title: Text(
+          event.title,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          '${DateFormat('h:mm a').format(event.startTime)} @ ${event.location ?? "No location"}',
+        ),
+        trailing: const Icon(Icons.chevron_right, size: 16),
+      ),
+    );
+  }
+
+  void _showAddEventDialog() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog:
+            true, // This makes it pop up with an "X" instead of a back arrow
+        builder: (context) => AddEventScreen(
+          organization: widget.organization!,
+          team: widget.team,
+          initialDate: _selectedDay ?? DateTime.now(),
+          currentUserId: widget.user.id,
+        ),
+      ),
+    );
+  }
+}

@@ -6,9 +6,7 @@ import '../models/team.dart';
 import '../services/organization_service.dart';
 import '../services/team_service.dart';
 import '../services/user_service.dart';
-import 'organization_dashboard_screen.dart';
-import 'dashboard_screen.dart';
-import 'team_dashboard_wrapper.dart';
+import 'main_shell.dart';
 
 class TeamSelectorScreen extends StatelessWidget {
   final AppUser user;
@@ -111,12 +109,15 @@ class _OrganizationSection extends StatelessWidget {
           (m) => m.role == MembershipRole.admin,
         );
 
-        print('DEBUG: Organization loaded: ${organization.name}');
-        print('DEBUG: hasAdminRole: $hasAdminRole');
-        print('DEBUG: Number of memberships: ${memberships.length}');
-        for (final m in memberships) {
-          print('DEBUG: Membership role: ${m.role}');
-        }
+        // Non-admin memberships that are tied to a specific team
+        final teamMemberships = memberships
+            .where((m) => m.role != MembershipRole.admin && m.teamId != null)
+            .toList();
+
+        // Org-level memberships (athlete, boatman) that aren't admin
+        final orgLevelMemberships = memberships
+            .where((m) => m.role != MembershipRole.admin && m.teamId == null)
+            .toList();
 
         return Card(
           margin: const EdgeInsets.only(bottom: 24),
@@ -134,40 +135,26 @@ class _OrganizationSection extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // Organization-level view (for admins)
+                // ── Admin: org-level view ─────────────────────────
                 if (hasAdminRole) ...[
                   _ViewOption(
                     title: 'Organization View',
                     subtitle: 'Manage entire organization',
                     icon: Icons.business,
-                    color: Colors.deepPurple,
-                    onTap: () async {
-                      final adminMembership = memberships.firstWhere(
+                    color: organization.primaryColorObj ?? Colors.deepPurple,
+                    onTap: () => _switchToMembership(
+                      context,
+                      memberships.firstWhere(
                         (m) => m.role == MembershipRole.admin,
-                      );
-
-                      // Update user's current context
-                      await UserService().updateCurrentContext(
-                        user.id,
-                        organizationId,
-                        adminMembership.id,
-                      );
-
-                      if (context.mounted) {
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const OrganizationDashboardScreen(),
-                          ),
-                        );
-                      }
-                    },
+                      ),
+                      teamOverrideId: null,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   const Divider(),
                   const SizedBox(height: 12),
                   const Text(
-                    'Or select a specific team:',
+                    'Or view a specific team:',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -175,18 +162,8 @@ class _OrganizationSection extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const SizedBox(height: 0),
-                  Builder(
-                    builder: (context) {
-                      print(
-                        'DEBUG: Creating StreamBuilder with orgId: $organizationId',
-                      );
-                      print(
-                        'DEBUG: teamService exists: ${teamService != null}',
-                      );
-                      return const SizedBox.shrink();
-                    },
-                  ),
+
+                  // Show all teams in the org (admin can view any)
                   StreamBuilder<List<Team>>(
                     stream: teamService.getOrganizationTeams(organizationId),
                     builder: (context, teamsSnapshot) {
@@ -207,12 +184,12 @@ class _OrganizationSection extends StatelessWidget {
                         );
                       }
 
+                      final adminMembership = memberships.firstWhere(
+                        (m) => m.role == MembershipRole.admin,
+                      );
+
                       return Column(
                         children: teams.map((team) {
-                          final adminMembership = memberships.firstWhere(
-                            (m) => m.role == MembershipRole.admin,
-                          );
-
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8),
                             child: _ViewOption(
@@ -220,24 +197,11 @@ class _OrganizationSection extends StatelessWidget {
                               subtitle: 'View as Admin',
                               icon: Icons.groups,
                               color: team.primaryColorObj,
-                              onTap: () async {
-                                await UserService().updateCurrentContext(
-                                  user.id,
-                                  organizationId,
-                                  adminMembership.id,
-                                );
-
-                                if (context.mounted) {
-                                  Navigator.of(context).pushReplacement(
-                                    MaterialPageRoute(
-                                      builder: (context) => TeamDashboardView(
-                                        team: team,
-                                        membership: adminMembership,
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
+                              onTap: () => _switchToMembership(
+                                context,
+                                adminMembership,
+                                teamOverrideId: team.id,
+                              ),
                             ),
                           );
                         }).toList(),
@@ -246,13 +210,93 @@ class _OrganizationSection extends StatelessWidget {
                   ),
                 ],
 
-                // Teams
+                // ── Non-admin team memberships ────────────────────
+                if (teamMemberships.isNotEmpty) ...[
+                  if (hasAdminRole) ...[
+                    const SizedBox(height: 12),
+                    const Divider(),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Your team memberships:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  ...teamMemberships.map((membership) {
+                    return FutureBuilder<Team?>(
+                      future: teamService.getTeam(membership.teamId!),
+                      builder: (context, teamSnapshot) {
+                        final team = teamSnapshot.data;
+                        final teamName = team?.name ?? 'Loading...';
+                        final teamColor = team?.primaryColorObj ?? Colors.blue;
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _ViewOption(
+                            title: teamName,
+                            subtitle: _getRoleLabel(membership.role),
+                            icon: Icons.groups,
+                            color: teamColor,
+                            onTap: () =>
+                                _switchToMembership(context, membership),
+                          ),
+                        );
+                      },
+                    );
+                  }),
+                ],
+
+                // ── Org-level non-admin memberships (athlete, boatman) ──
+                if (orgLevelMemberships.isNotEmpty) ...[
+                  if (hasAdminRole || teamMemberships.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    const Divider(),
+                    const SizedBox(height: 12),
+                  ],
+                  ...orgLevelMemberships.map((membership) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _ViewOption(
+                        title: _getRoleLabel(membership.role),
+                        subtitle: organization.name,
+                        icon: _getRoleIcon(membership.role),
+                        color: organization.primaryColorObj ?? Colors.teal,
+                        onTap: () => _switchToMembership(context, membership),
+                      ),
+                    );
+                  }),
+                ],
               ],
             ),
           ),
         );
       },
     );
+  }
+
+  /// Switch to a membership and navigate to MainShell
+  Future<void> _switchToMembership(
+    BuildContext context,
+    Membership membership, {
+    String? teamOverrideId,
+  }) async {
+    await UserService().updateCurrentContext(
+      user.id,
+      organizationId,
+      membership.id,
+    );
+
+    if (context.mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => MainShell(teamOverrideId: teamOverrideId),
+        ),
+      );
+    }
   }
 
   String _getRoleLabel(MembershipRole role) {
@@ -269,6 +313,23 @@ class _OrganizationSection extends StatelessWidget {
         return 'Boatman';
       case MembershipRole.athlete:
         return 'Athlete';
+    }
+  }
+
+  IconData _getRoleIcon(MembershipRole role) {
+    switch (role) {
+      case MembershipRole.admin:
+        return Icons.admin_panel_settings;
+      case MembershipRole.coach:
+        return Icons.sports;
+      case MembershipRole.rower:
+        return Icons.rowing;
+      case MembershipRole.coxswain:
+        return Icons.record_voice_over;
+      case MembershipRole.boatman:
+        return Icons.build;
+      case MembershipRole.athlete:
+        return Icons.person;
     }
   }
 }
