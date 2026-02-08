@@ -7,7 +7,9 @@ import '../models/organization.dart';
 import '../models/team.dart';
 import '../models/calendar_event.dart';
 import '../services/calendar_service.dart';
+import '../services/workout_service.dart';
 import '../screens/add_event_screen.dart';
+import '../screens/calendar_event_detail_screen.dart';
 
 class CalendarTab extends StatefulWidget {
   final AppUser user;
@@ -29,11 +31,15 @@ class CalendarTab extends StatefulWidget {
 
 class _CalendarTabState extends State<CalendarTab> {
   final _calendarService = CalendarService();
+  final _workoutService = WorkoutService();
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   Map<DateTime, List<CalendarEvent>> _groupedEvents = {};
   late final ValueNotifier<List<CalendarEvent>> _selectedEvents;
+
+  // Formatters
+  final _timeFormat = DateFormat('h:mm a');
 
   @override
   void initState() {
@@ -57,6 +63,8 @@ class _CalendarTabState extends State<CalendarTab> {
       widget.team?.primaryColorObj ??
       widget.organization?.primaryColorObj ??
       const Color(0xFF1976D2);
+
+  String get _orgId => widget.organization!.id;
 
   Map<DateTime, List<CalendarEvent>> _groupEvents(List<CalendarEvent> events) {
     Map<DateTime, List<CalendarEvent>> data = {};
@@ -88,6 +96,49 @@ class _CalendarTabState extends State<CalendarTab> {
     return _groupedEvents[_normalizeDate(day)] ?? [];
   }
 
+  // ── Navigate to Add Event screen ──
+  void _showAddEventDialog() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddEventScreen(
+          initialDate: DateTime.now(),
+          currentUserId: widget.user.id,
+          organization: widget.organization!,
+          team: widget.team,
+        ),
+      ),
+    );
+  }
+
+  // ── Navigate to Event Detail screen ──
+  void _openEventDetail(CalendarEvent event) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CalendarEventDetailScreen(
+          user: widget.user,
+          currentMembership: widget.currentMembership,
+          organization: widget.organization!,
+          team: widget.team,
+          event: event,
+        ),
+      ),
+    );
+  }
+
+  // ── Fetch workout names for calendar tile badges ──
+  Future<List<String>> _getWorkoutNames(List<String> sessionIds) async {
+    final names = <String>[];
+    for (final id in sessionIds) {
+      final session = await _workoutService.getSession(_orgId, id);
+      if (session != null && !session.hideUntilStart) {
+        names.add(session.name);
+      }
+    }
+    return names;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.organization == null) {
@@ -116,7 +167,7 @@ class _CalendarTabState extends State<CalendarTab> {
               const Spacer(),
               if (_canEdit)
                 TextButton.icon(
-                  onPressed: () => _showAddEventDialog(),
+                  onPressed: _showAddEventDialog,
                   icon: Icon(
                     Icons.add_circle_outline,
                     color: _primaryColor,
@@ -233,31 +284,58 @@ class _CalendarTabState extends State<CalendarTab> {
 
   Widget _buildEventCard(CalendarEvent event) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: ListTile(
-        title: Text(
-          event.title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(
-          '${DateFormat('h:mm a').format(event.startTime)} @ ${event.location ?? "No location"}',
-        ),
-        trailing: const Icon(Icons.chevron_right, size: 16),
-      ),
-    );
-  }
+        title: Text(event.title),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_timeFormat.format(event.startTime)),
 
-  void _showAddEventDialog() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (context) => AddEventScreen(
-          organization: widget.organization!,
-          team: widget.team,
-          initialDate: _selectedDay ?? DateTime.now(),
-          currentUserId: widget.user.id,
+            // Show linked workout names as badges
+            if (event.linkedWorkoutSessionIds != null &&
+                event.linkedWorkoutSessionIds!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: FutureBuilder<List<String>>(
+                  future: _getWorkoutNames(event.linkedWorkoutSessionIds!),
+                  builder: (context, snap) {
+                    if (!snap.hasData || snap.data!.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: snap.data!
+                          .map(
+                            (name) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _primaryColor.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                name,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: _primaryColor,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    );
+                  },
+                ),
+              ),
+          ],
         ),
+        trailing: const Icon(Icons.chevron_right, size: 20),
+        onTap: () => _openEventDetail(event),
       ),
     );
   }

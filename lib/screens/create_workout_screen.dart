@@ -6,12 +6,14 @@ import '../models/team.dart';
 import '../models/workout_template.dart';
 import '../widgets/team_header.dart';
 import 'create_erg_workout_screen.dart';
+import 'browse_templates_screen.dart';
 
 class CreateWorkoutScreen extends StatelessWidget {
   final AppUser user;
   final Membership currentMembership;
   final Organization organization;
   final Team? team;
+  final dynamic preLinkedEvent;
 
   const CreateWorkoutScreen({
     super.key,
@@ -19,6 +21,7 @@ class CreateWorkoutScreen extends StatelessWidget {
     required this.currentMembership,
     required this.organization,
     required this.team,
+    this.preLinkedEvent,
   });
 
   Color get primaryColor =>
@@ -71,10 +74,21 @@ class CreateWorkoutScreen extends StatelessWidget {
                   title: 'Erg Workout',
                   subtitle:
                       'Single piece, standard intervals, or variable intervals',
-                  icon: Icons.fitness_center,
+                  icon: Icons.monitor_heart_rounded,
                   color: Colors.red[700]!,
-                  onTap: () =>
-                      _navigateToCategory(context, WorkoutCategory.erg),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => BrowseTemplatesScreen(
+                        user: user,
+                        currentMembership: currentMembership,
+                        organization: organization,
+                        team: team,
+                        category: WorkoutCategory.erg,
+                        preLinkedEvent: preLinkedEvent,
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 _CategoryCard(
@@ -98,7 +112,7 @@ class CreateWorkoutScreen extends StatelessWidget {
                 _CategoryCard(
                   title: 'Lift',
                   subtitle: 'Exercises with sets, reps, and optional weight',
-                  icon: Icons.sports_gymnastics,
+                  icon: Icons.fitness_center,
                   color: Colors.green[700]!,
                   onTap: () =>
                       _navigateToCategory(context, WorkoutCategory.lift),

@@ -132,27 +132,19 @@ class CalendarService {
   }
 
   /// Unlink a workout session from a practice event
-  Future<void> unlinkWorkoutFromEvent(
-    String eventId,
-    String workoutSessionId,
-  ) async {
-    try {
-      await _firestore.collection(_collection).doc(eventId).update({
-        'linkedWorkoutSessionIds': FieldValue.arrayRemove([workoutSessionId]),
-      });
-    } catch (e) {
-      throw 'Error unlinking workout from event: $e';
-    }
+  Future<void> unlinkWorkoutFromEvent(String eventId, String sessionId) async {
+    await _firestore.collection('calendar_events').doc(eventId).update({
+      'linkedWorkoutSessionIds': FieldValue.arrayRemove([sessionId]),
+    });
   }
 
   /// Get a single event by ID
   Future<CalendarEvent?> getEvent(String eventId) async {
-    try {
-      final doc = await _firestore.collection(_collection).doc(eventId).get();
-      if (!doc.exists) return null;
-      return CalendarEvent.fromFirestore(doc);
-    } catch (e) {
-      throw 'Error getting event: $e';
-    }
+    final doc = await _firestore
+        .collection('calendar_events')
+        .doc(eventId)
+        .get();
+    if (!doc.exists) return null;
+    return CalendarEvent.fromFirestore(doc);
   }
 }

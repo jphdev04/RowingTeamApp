@@ -16,7 +16,8 @@ class CreateErgWorkoutScreen extends StatefulWidget {
   final Membership currentMembership;
   final Organization organization;
   final Team? team;
-  final WorkoutTemplate? existingTemplate; // for editing
+  final WorkoutTemplate? fromTemplate;
+  final dynamic preLinkedEvent;
 
   const CreateErgWorkoutScreen({
     super.key,
@@ -24,7 +25,8 @@ class CreateErgWorkoutScreen extends StatefulWidget {
     required this.currentMembership,
     required this.organization,
     required this.team,
-    this.existingTemplate,
+    this.fromTemplate,
+    this.preLinkedEvent,
   });
 
   @override
@@ -59,8 +61,7 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
   List<_VariableIntervalEntry> _variableIntervals = [_VariableIntervalEntry()];
 
   // Practice linking
-  // 'linkToPractice' or 'onYourOwn'
-  String _scheduleMode = 'linkToPractice';
+  String _scheduleMode = 'linkToPractice'; // 'linkToPractice' or 'onYourOwn'
   List<CalendarEvent> _upcomingPractices = [];
   CalendarEvent? _selectedPractice;
   bool _loadingPractices = true;
@@ -70,6 +71,7 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
   TimeOfDay _scheduledTime = TimeOfDay.now();
 
   // Options
+  bool _saveAsTemplate = true;
   bool _isBenchmark = false;
   bool _hideUntilStart = false;
   bool _athletesCanSeeResults = true;
@@ -85,15 +87,77 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.existingTemplate != null) {
-      _loadFromTemplate(widget.existingTemplate!);
+    if (widget.fromTemplate != null) {
+      _loadFromTemplate(widget.fromTemplate!);
     }
-    _nameController.addListener(() {
-      if (_nameController.text.isNotEmpty) {
-        _nameManuallyEdited = true;
-      }
-    });
+    if (widget.preLinkedEvent != null) {
+      _scheduleMode = 'linkToPractice';
+      _selectedPractice = widget.preLinkedEvent as CalendarEvent?;
+    }
     _loadUpcomingPractices();
+  }
+
+  void _loadFromTemplate(WorkoutTemplate t) {
+    _ergType = t.ergType ?? ErgType.single;
+    _ergFormat = t.ergFormat ?? ErgFormat.distance;
+    _isBenchmark = t.isBenchmark;
+    _nameController.text = t.name;
+    _nameManuallyEdited = true;
+    _descriptionController.text = t.description ?? '';
+
+    // Single piece
+    if (t.targetDistance != null) {
+      _singleDistanceController.text = t.targetDistance.toString();
+    }
+    if (t.targetTime != null) {
+      _singleTimeMinController.text = (t.targetTime! ~/ 60).toString();
+      _singleTimeSecController.text = (t.targetTime! % 60).toString().padLeft(
+        2,
+        '0',
+      );
+    }
+
+    // Standard intervals
+    if (t.intervalCount != null) {
+      _intervalCountController.text = t.intervalCount.toString();
+    }
+    if (t.intervalDistance != null) {
+      _intervalDistanceController.text = t.intervalDistance.toString();
+    }
+    if (t.intervalTime != null) {
+      _intervalTimeMinController.text = (t.intervalTime! ~/ 60).toString();
+      _intervalTimeSecController.text = (t.intervalTime! % 60)
+          .toString()
+          .padLeft(2, '0');
+    }
+    if (t.restSeconds != null) {
+      _restMinController.text = (t.restSeconds! ~/ 60).toString();
+      _restSecController.text = (t.restSeconds! % 60).toString().padLeft(
+        2,
+        '0',
+      );
+    }
+
+    // Variable intervals
+    if (t.variableIntervals != null && t.variableIntervals!.isNotEmpty) {
+      _variableIntervals = t.variableIntervals!.map((vi) {
+        final entry = _VariableIntervalEntry();
+        if (_ergFormat == ErgFormat.distance && vi.distance != null) {
+          entry.valueController.text = vi.distance.toString();
+        } else if (_ergFormat == ErgFormat.time && vi.time != null) {
+          entry.valueController.text = vi.time.toString();
+        }
+        if (vi.restSeconds > 0) {
+          entry.restMinController.text = (vi.restSeconds ~/ 60).toString();
+          entry.restSecController.text = (vi.restSeconds % 60)
+              .toString()
+              .padLeft(2, '0');
+        }
+        return entry;
+      }).toList();
+    }
+
+    setState(() {});
   }
 
   Future<void> _loadUpcomingPractices() async {
@@ -135,49 +199,6 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
       entry.dispose();
     }
     super.dispose();
-  }
-
-  void _loadFromTemplate(WorkoutTemplate t) {
-    _nameController.text = t.name;
-    _nameManuallyEdited = true;
-    _descriptionController.text = t.description ?? '';
-    _ergType = t.ergType ?? ErgType.single;
-    _ergFormat = t.ergFormat ?? ErgFormat.distance;
-    _isBenchmark = t.isBenchmark;
-
-    if (_ergType == ErgType.single) {
-      if (_ergFormat == ErgFormat.distance && t.targetDistance != null) {
-        _singleDistanceController.text = t.targetDistance.toString();
-      } else if (_ergFormat == ErgFormat.time && t.targetTime != null) {
-        _singleTimeMinController.text = (t.targetTime! ~/ 60).toString();
-        _singleTimeSecController.text = (t.targetTime! % 60).toString();
-      }
-    } else if (_ergType == ErgType.standardIntervals) {
-      _intervalCountController.text = (t.intervalCount ?? '').toString();
-      if (_ergFormat == ErgFormat.distance && t.intervalDistance != null) {
-        _intervalDistanceController.text = t.intervalDistance.toString();
-      } else if (_ergFormat == ErgFormat.time && t.intervalTime != null) {
-        _intervalTimeMinController.text = (t.intervalTime! ~/ 60).toString();
-        _intervalTimeSecController.text = (t.intervalTime! % 60).toString();
-      }
-      if (t.restSeconds != null) {
-        _restMinController.text = (t.restSeconds! ~/ 60).toString();
-        _restSecController.text = (t.restSeconds! % 60).toString();
-      }
-    } else if (_ergType == ErgType.variableIntervals &&
-        t.variableIntervals != null) {
-      _variableIntervals = t.variableIntervals!.map((v) {
-        final entry = _VariableIntervalEntry();
-        if (_ergFormat == ErgFormat.distance && v.distance != null) {
-          entry.valueController.text = v.distance.toString();
-        } else if (_ergFormat == ErgFormat.time && v.time != null) {
-          entry.valueController.text = v.time.toString();
-        }
-        entry.restMinController.text = (v.restSeconds ~/ 60).toString();
-        entry.restSecController.text = (v.restSeconds % 60).toString();
-        return entry;
-      }).toList();
-    }
   }
 
   /// Auto-generate workout name from spec
@@ -523,7 +544,6 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
 
   List<Widget> _buildStandardIntervalFields() {
     return [
-      // Number of intervals
       _buildSectionLabel('Number of Intervals'),
       const SizedBox(height: 8),
       _buildNumberField(
@@ -532,8 +552,6 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
         onChanged: (_) => _updateAutoName(),
       ),
       const SizedBox(height: 16),
-
-      // Interval distance or time
       _buildSectionLabel(
         _ergFormat == ErgFormat.distance
             ? 'Distance per Interval (meters)'
@@ -554,8 +572,6 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
           onChanged: () => _updateAutoName(),
         ),
       const SizedBox(height: 16),
-
-      // Rest
       _buildSectionLabel('Rest Between Intervals'),
       const SizedBox(height: 8),
       _buildTimeInput(
@@ -631,7 +647,6 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // Value (distance or time in seconds)
                   _buildNumberField(
                     controller: entry.valueController,
                     hint: _ergFormat == ErgFormat.distance
@@ -641,7 +656,6 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
                     onChanged: (_) => _updateAutoName(),
                   ),
                   const SizedBox(height: 12),
-                  // Rest
                   Row(
                     children: [
                       Text(
@@ -752,6 +766,20 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(
         children: [
+          SwitchListTile(
+            title: const Text(
+              'Save as Template',
+              style: TextStyle(fontSize: 15),
+            ),
+            subtitle: Text(
+              'Reuse this workout setup in the future',
+              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+            ),
+            value: _saveAsTemplate,
+            onChanged: (v) => setState(() => _saveAsTemplate = v),
+            activeColor: primaryColor,
+          ),
+          const Divider(height: 1),
           SwitchListTile(
             title: const Text('Benchmark Test'),
             subtitle: const Text('Track results over time'),
@@ -1073,7 +1101,8 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
         children: [
           ..._upcomingPractices.map((practice) {
             final isSelected = _selectedPractice?.id == practice.id;
-            final workoutCount = practice.linkedWorkoutSessionIds.length;
+            final workoutCount =
+                (practice.linkedWorkoutSessionIds ?? []).length;
             return InkWell(
               onTap: () => setState(() => _selectedPractice = practice),
               child: Container(
@@ -1166,10 +1195,8 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
 
     if (!_formKey.currentState!.validate()) return;
 
-    // Validate erg-specific fields
     if (!_validateErgFields()) return;
 
-    // Validate practice selection
     if (_scheduleMode == 'linkToPractice' && _selectedPractice == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1203,28 +1230,59 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
         calendarEventId = null;
       }
 
-      // Build template
+      // Build template (for the spec snapshot and optionally saving)
       final template = _buildTemplate(now);
 
-      // Save template
-      final savedTemplate = await _workoutService.createTemplate(template);
+      // Optionally save as reusable template
+      WorkoutTemplate? savedTemplate;
+      if (_saveAsTemplate) {
+        savedTemplate = await _workoutService.createTemplate(template);
+      }
 
-      // Create session from template
-      final savedSession = await _workoutService.createSessionFromTemplate(
-        template: savedTemplate,
-        scheduledDate: scheduledDateTime,
-        createdBy: widget.user.id,
+      // Build the workoutSpec snapshot from the template
+      final workoutSpec = <String, dynamic>{
+        'ergType': _ergType.name,
+        'ergFormat': _ergFormat.name,
+        if (template.targetDistance != null)
+          'targetDistance': template.targetDistance,
+        if (template.targetTime != null) 'targetTime': template.targetTime,
+        if (template.intervalCount != null)
+          'intervalCount': template.intervalCount,
+        if (template.intervalDistance != null)
+          'intervalDistance': template.intervalDistance,
+        if (template.intervalTime != null)
+          'intervalTime': template.intervalTime,
+        if (template.restSeconds != null) 'restSeconds': template.restSeconds,
+        if (template.variableIntervals != null)
+          'variableIntervals': template.variableIntervals!
+              .map((vi) => vi.toMap())
+              .toList(),
+      };
+
+      // Create session with all required fields
+      final session = WorkoutSession(
+        id: '', // will be set by service
+        organizationId: widget.organization.id,
         teamId: widget.team?.id,
+        templateId: savedTemplate?.id,
         calendarEventId: calendarEventId,
+        createdBy: widget.user.id,
+        createdAt: now,
+        name: _nameController.text.trim(),
+        category: WorkoutCategory.erg,
+        scheduledDate: scheduledDateTime,
+        workoutSpec: workoutSpec,
         hideUntilStart: _hideUntilStart,
         athletesCanSeeResults: _athletesCanSeeResults,
       );
+
+      final createdSession = await _workoutService.createSession(session);
 
       // Link workout session to practice event
       if (calendarEventId != null) {
         await _calendarService.linkWorkoutToEvent(
           calendarEventId,
-          savedSession.id,
+          createdSession.id,
         );
       }
 
@@ -1235,8 +1293,7 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message), backgroundColor: Colors.green),
         );
-        Navigator.of(context).pop(); // pop erg screen
-        Navigator.of(context).pop(); // pop create workout screen
+        Navigator.of(context).pop(true); // pop erg screen
       }
     } catch (e) {
       if (mounted) {
@@ -1354,7 +1411,7 @@ class _CreateErgWorkoutScreenState extends State<CreateErgWorkoutScreen> {
     }
 
     return WorkoutTemplate(
-      id: '', // set by service
+      id: '',
       organizationId: widget.organization.id,
       teamId: widget.team?.id,
       createdBy: widget.user.id,
