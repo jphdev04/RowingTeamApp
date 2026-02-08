@@ -3,7 +3,6 @@ import '../models/user.dart';
 import '../models/membership.dart';
 import '../models/organization.dart';
 import '../models/team.dart';
-import '../widgets/team_header.dart';
 
 class WorkoutsTab extends StatelessWidget {
   final AppUser user;
@@ -25,16 +24,10 @@ class WorkoutsTab extends StatelessWidget {
 
   bool get isCoxswain => currentMembership.role == MembershipRole.coxswain;
 
-  String get _subtitle {
-    if (isCoach) return 'Assign and track team workouts';
-    if (isCoxswain) return 'Log erg workouts';
-    return 'Track your workouts';
-  }
-
   String get _placeholderText {
     if (isCoach) return 'Workout management coming soon!';
     if (isCoxswain) return 'Erg workout logging coming soon!';
-    return 'Concept2 connection and workout tracking coming soon!';
+    return 'Concept2 connection and workout\ntracking coming soon!';
   }
 
   IconData get _placeholderIcon {
@@ -44,38 +37,23 @@ class WorkoutsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.grey[50],
+    return Center(
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          TeamHeader(
-            team: team,
-            organization: team == null ? organization : null,
-            title: 'Workouts',
-            subtitle: _subtitle,
+          Icon(_placeholderIcon, size: 64, color: Colors.grey),
+          const SizedBox(height: 16),
+          const Text(
+            'Workouts',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(_placeholderIcon, size: 64, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Workouts',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      _placeholderText,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.grey, fontSize: 16),
-                    ),
-                  ),
-                ],
-              ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              _placeholderText,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey, fontSize: 16),
             ),
           ),
         ],

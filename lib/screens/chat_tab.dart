@@ -3,7 +3,6 @@ import '../models/user.dart';
 import '../models/membership.dart';
 import '../models/organization.dart';
 import '../models/team.dart';
-import '../widgets/team_header.dart';
 
 class ChatTab extends StatelessWidget {
   final AppUser user;
@@ -21,35 +20,20 @@ class ChatTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.grey[50],
+    return const Center(
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          TeamHeader(
-            team: team,
-            organization: team == null ? organization : null,
-            title: 'Team Chat',
-            subtitle: team?.name ?? organization?.name ?? '',
+          Icon(Icons.chat, size: 64, color: Colors.grey),
+          SizedBox(height: 16),
+          Text(
+            'Team Chat',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
-          const Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.chat, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    'Team Chat',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Messaging coming soon!',
-                    style: TextStyle(color: Colors.grey, fontSize: 16),
-                  ),
-                ],
-              ),
-            ),
+          SizedBox(height: 8),
+          Text(
+            'Messaging coming soon!',
+            style: TextStyle(color: Colors.grey, fontSize: 16),
           ),
         ],
       ),

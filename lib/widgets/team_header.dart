@@ -7,7 +7,7 @@ class TeamHeader extends StatelessWidget {
   final Organization? organization;
   final String title;
   final String? subtitle;
-  final List<Widget> actions;
+  final List<Widget>? actions;
   final Widget? leading;
 
   const TeamHeader({
@@ -16,80 +16,96 @@ class TeamHeader extends StatelessWidget {
     this.organization,
     required this.title,
     this.subtitle,
-    this.actions = const [],
+    this.actions,
     this.leading,
   });
 
-  Color get _primaryColor {
-    if (team != null) return team!.primaryColorObj;
-    if (organization != null) return organization!.primaryColorObj;
-    return const Color(0xFF1976D2);
-  }
-
-  Color get _secondaryColor {
-    if (team != null) return team!.secondaryColorObj;
-    if (organization != null) return organization!.secondaryColorObj;
-    return const Color(0xFFFFFFFF);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final textColor = _primaryColor.computeLuminance() > 0.5
+    final primaryColor =
+        team?.primaryColorObj ??
+        organization?.primaryColorObj ??
+        const Color(0xFF1976D2);
+    final secondaryColor =
+        team?.secondaryColorObj ??
+        organization?.secondaryColorObj ??
+        const Color(0xFFFFFFFF);
+    final textColor = primaryColor.computeLuminance() > 0.5
         ? Colors.black
         : Colors.white;
+    final subtextColor = primaryColor.computeLuminance() > 0.5
+        ? Colors.black54
+        : Colors.white70;
 
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(
+        20,
+        MediaQuery.of(context).padding.top + 8,
+        20,
         24,
-        MediaQuery.of(context).padding.top + 16,
-        24,
-        32,
       ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [_primaryColor, _secondaryColor],
+          colors: [primaryColor, secondaryColor],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
-        ),
+        // No rounded corners — flat bar
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top row with leading (back button) and actions
-          Row(
-            children: [
-              if (leading != null) leading! else const SizedBox(width: 48),
-              const Spacer(),
-              ...actions,
+      child: SafeArea(
+        top: false,
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top row: leading + actions
+            Row(
+              children: [
+                if (leading != null) leading!,
+                const Spacer(),
+                if (actions != null) ...actions!,
+              ],
+            ),
+            if (team != null) ...[
+              Text(
+                team!.name,
+                style: TextStyle(
+                  color: subtextColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
             ],
-          ),
-          const SizedBox(height: 16),
-
-          // Icon
-          const SizedBox(height: 16),
-          // Title
-          Text(
-            title,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          // Subtitle
-          if (subtitle != null) ...[
-            const SizedBox(height: 4),
+            if (organization != null && team == null) ...[
+              Text(
+                organization!.name,
+                style: TextStyle(
+                  color: subtextColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+            ],
             Text(
-              subtitle!,
-              style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 16),
+              title,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+              ),
             ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                subtitle!,
+                style: TextStyle(color: subtextColor, fontSize: 16),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

@@ -4,7 +4,6 @@ import '../models/membership.dart';
 import '../models/organization.dart';
 import '../models/team.dart';
 import '../widgets/dashboard_card.dart';
-import 'team_selector_screen.dart';
 import 'equipment_screen.dart';
 import 'report_damage_screen.dart';
 import 'roster_screen.dart';
@@ -35,204 +34,21 @@ class HomeTab extends StatelessWidget {
       organization?.primaryColorObj ??
       const Color(0xFF1976D2);
 
-  Color get secondaryColor =>
-      team?.secondaryColorObj ??
-      organization?.secondaryColorObj ??
-      const Color(0xFFFFFFFF);
-
-  Color get _headerTextColor =>
-      primaryColor.computeLuminance() > 0.5 ? Colors.black : Colors.white;
-
-  Color get _headerSubtextColor =>
-      primaryColor.computeLuminance() > 0.5 ? Colors.black54 : Colors.white70;
-
-  String get _roleDisplayName {
-    if (currentMembership.customTitle != null) {
-      return currentMembership.customTitle!;
-    }
-    switch (role) {
-      case MembershipRole.coach:
-        return 'Coach ${user.name}';
-      case MembershipRole.admin:
-        return 'Admin ${user.name}';
-      case MembershipRole.boatman:
-        return 'Boatman ${user.name}';
-      default:
-        return user.name;
-    }
-  }
-
-  String get _viewLabel {
-    switch (role) {
-      case MembershipRole.admin:
-        // If viewing a specific team as admin, show that
-        if (team != null) return 'Admin → ${team!.name}';
-        return 'Organization View';
-      case MembershipRole.coach:
-        return 'Coach View';
-      case MembershipRole.boatman:
-        return 'Boatman View';
-      case MembershipRole.rower:
-        return 'Rower';
-      case MembershipRole.coxswain:
-        return 'Coxswain';
-      case MembershipRole.athlete:
-        return 'Athlete';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.grey[50],
-      child: SafeArea(
-        top: false,
-        bottom: false,
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(child: _buildHeader(context)),
-            SliverPadding(
-              padding: const EdgeInsets.all(16.0),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  Text(
-                    'Home',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: primaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ..._buildCardsForRole(context),
-                  const SizedBox(height: 16),
-                ]),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(
-        24,
-        MediaQuery.of(context).padding.top + 16,
-        24,
-        32,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [primaryColor, secondaryColor],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              if (memberships.length > 1 || role == MembershipRole.admin)
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(
-                        builder: (context) => TeamSelectorScreen(
-                          user: user,
-                          memberships: memberships,
-                        ),
-                      ),
-                    );
-                  },
-                  icon: Icon(Icons.swap_horiz, color: _headerTextColor),
-                  label: Text(
-                    'Switch',
-                    style: TextStyle(color: _headerTextColor),
-                  ),
-                )
-              else
-                const SizedBox(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: _headerTextColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _viewLabel,
-                  style: TextStyle(
-                    color: _headerTextColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: Icon(
-              Icons.house_outlined,
-              size: 60,
-              color: _headerTextColor.withOpacity(0.3),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Welcome back,',
-            style: TextStyle(color: _headerSubtextColor, fontSize: 16),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _roleDisplayName,
-            style: TextStyle(
-              color: _headerTextColor,
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          if (team != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              team!.name,
-              style: TextStyle(
-                color: _headerSubtextColor,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-          if (organization != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              organization!.name,
-              style: TextStyle(
-                color: _headerTextColor.withOpacity(0.6),
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ],
-      ),
+    return ListView(
+      padding: const EdgeInsets.all(16.0),
+      children: [
+        const SizedBox(height: 8),
+        ..._buildCardsForRole(context),
+        const SizedBox(height: 16),
+      ],
     );
   }
 
   List<Widget> _buildCardsForRole(BuildContext context) {
     switch (role) {
       case MembershipRole.admin:
-        // If admin is viewing a specific team, show coach-like cards
         if (team != null) return _buildCoachCards(context);
         return _buildAdminCards(context);
       case MembershipRole.coach:
@@ -372,7 +188,7 @@ class HomeTab extends StatelessWidget {
     ];
   }
 
-  // ── Coach (also used for admin viewing a specific team) ────────
+  // ── Coach ──────────────────────────────────────────────────────
   List<Widget> _buildCoachCards(BuildContext context) {
     return [
       _cardRow(
@@ -609,10 +425,8 @@ class HomeTab extends StatelessWidget {
     ];
   }
 
-  // ── Coxswain ───────────────────────────────────────────────────
-  List<Widget> _buildCoxswainCards(BuildContext context) {
-    return _buildRowerCards(context);
-  }
+  List<Widget> _buildCoxswainCards(BuildContext context) =>
+      _buildRowerCards(context);
 
   // ── Individual Athlete ─────────────────────────────────────────
   List<Widget> _buildAthleteCards(BuildContext context) {

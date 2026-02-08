@@ -15,10 +15,9 @@ import 'workouts_tab.dart';
 import 'profile_tab.dart';
 import 'onboarding_screen.dart';
 import 'login_screen.dart';
+import 'team_selector_screen.dart';
 
 class MainShell extends StatefulWidget {
-  /// Optional team ID override — used when an admin selects a specific team
-  /// from the team selector. If null, uses the membership's teamId.
   final String? teamOverrideId;
 
   const MainShell({super.key, this.teamOverrideId});
@@ -37,6 +36,10 @@ class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
   final PageController _pageController = PageController();
 
+  /// Drives the header animation without rebuilding the whole tree.
+  /// 0.0 = expanded (Home), 1.0 = compact (other tabs)
+  final ValueNotifier<double> _collapseNotifier = ValueNotifier(0.0);
+
   // Cached data
   AppUser? _user;
   List<Membership> _memberships = [];
@@ -45,10 +48,34 @@ class _MainShellState extends State<MainShell> {
   Team? _team;
   bool _dataReady = false;
 
+  static const _tabTitles = ['Home', 'Calendar', 'Chat', 'Workouts', 'Profile'];
+  static const _tabSubtitles = [
+    '',
+    'Schedule & events',
+    'Team messaging',
+    'Track & assign',
+    'Your account',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController.addListener(_onScroll);
+  }
+
   @override
   void dispose() {
+    _pageController.removeListener(_onScroll);
     _pageController.dispose();
+    _collapseNotifier.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_pageController.hasClients) return;
+    final page = _pageController.page ?? 0.0;
+    // Only the header listens to this — no setState needed
+    _collapseNotifier.value = page.clamp(0.0, 1.0);
   }
 
   void _onTabTapped(int index) {
@@ -113,7 +140,6 @@ class _MainShellState extends State<MainShell> {
               return _buildEmptyState(context, user);
             }
 
-            // Resolve current membership
             Membership currentMembership;
             if (user.currentMembershipId != null) {
               currentMembership = memberships.firstWhere(
@@ -141,7 +167,6 @@ class _MainShellState extends State<MainShell> {
                   _organization = orgSnapshot.data;
                 }
 
-                // Use teamOverrideId first, then fall back to membership's teamId
                 final teamId =
                     widget.teamOverrideId ?? currentMembership.teamId;
 
@@ -180,41 +205,66 @@ class _MainShellState extends State<MainShell> {
         const Color(0xFF1976D2);
 
     return Scaffold(
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: _onPageChanged,
+      backgroundColor: Colors.grey[50],
+      body: Column(
         children: [
-          HomeTab(
-            user: _user!,
-            memberships: _memberships,
-            currentMembership: _currentMembership!,
-            organization: _organization,
-            team: _team,
+          // ── Persistent animated header (only this repaints on swipe) ──
+          ValueListenableBuilder<double>(
+            valueListenable: _collapseNotifier,
+            builder: (context, collapse, _) {
+              return _AnimatedHeader(
+                collapse: collapse,
+                currentIndex: _currentIndex,
+                user: _user!,
+                memberships: _memberships,
+                currentMembership: _currentMembership!,
+                organization: _organization,
+                team: _team,
+                tabTitles: _tabTitles,
+                tabSubtitles: _tabSubtitles,
+              );
+            },
           ),
-          CalendarTab(
-            user: _user!,
-            currentMembership: _currentMembership!,
-            organization: _organization,
-            team: _team,
-          ),
-          ChatTab(
-            user: _user!,
-            currentMembership: _currentMembership!,
-            organization: _organization,
-            team: _team,
-          ),
-          WorkoutsTab(
-            user: _user!,
-            currentMembership: _currentMembership!,
-            organization: _organization,
-            team: _team,
-          ),
-          ProfileTab(
-            user: _user!,
-            memberships: _memberships,
-            currentMembership: _currentMembership!,
-            organization: _organization,
-            team: _team,
+          // ── Tab content (not rebuilt during swipe animation) ──
+          Expanded(
+            child: PageView(
+              controller: _pageController,
+              onPageChanged: _onPageChanged,
+              children: [
+                HomeTab(
+                  user: _user!,
+                  memberships: _memberships,
+                  currentMembership: _currentMembership!,
+                  organization: _organization,
+                  team: _team,
+                ),
+                CalendarTab(
+                  user: _user!,
+                  currentMembership: _currentMembership!,
+                  organization: _organization,
+                  team: _team,
+                ),
+                ChatTab(
+                  user: _user!,
+                  currentMembership: _currentMembership!,
+                  organization: _organization,
+                  team: _team,
+                ),
+                WorkoutsTab(
+                  user: _user!,
+                  currentMembership: _currentMembership!,
+                  organization: _organization,
+                  team: _team,
+                ),
+                ProfileTab(
+                  user: _user!,
+                  memberships: _memberships,
+                  currentMembership: _currentMembership!,
+                  organization: _organization,
+                  team: _team,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -331,5 +381,298 @@ class _MainShellState extends State<MainShell> {
         );
       }
     }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Animated header — only this widget rebuilds during swipe
+// ─────────────────────────────────────────────────────────────────
+
+class _AnimatedHeader extends StatelessWidget {
+  final double collapse;
+  final int currentIndex;
+  final AppUser user;
+  final List<Membership> memberships;
+  final Membership currentMembership;
+  final Organization? organization;
+  final Team? team;
+  final List<String> tabTitles;
+  final List<String> tabSubtitles;
+
+  const _AnimatedHeader({
+    required this.collapse,
+    required this.currentIndex,
+    required this.user,
+    required this.memberships,
+    required this.currentMembership,
+    required this.organization,
+    required this.team,
+    required this.tabTitles,
+    required this.tabSubtitles,
+  });
+
+  // ── Expanded height: 230, Compact height: 100 ──
+  static const _expandedHeight = 230.0;
+  static const _compactHeight = 150.0;
+
+  MembershipRole get role => currentMembership.role;
+
+  Color get primaryColor =>
+      team?.primaryColorObj ??
+      organization?.primaryColorObj ??
+      const Color(0xFF1976D2);
+
+  Color get secondaryColor =>
+      team?.secondaryColorObj ??
+      organization?.secondaryColorObj ??
+      const Color(0xFFFFFFFF);
+
+  Color get _textColor =>
+      primaryColor.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+
+  Color get _subtextColor =>
+      primaryColor.computeLuminance() > 0.5 ? Colors.black54 : Colors.white70;
+
+  String get _roleDisplayName {
+    if (currentMembership.customTitle != null) {
+      return currentMembership.customTitle!;
+    }
+    switch (role) {
+      case MembershipRole.coach:
+        return 'Coach ${user.name}';
+      case MembershipRole.admin:
+        return 'Admin ${user.name}';
+      case MembershipRole.boatman:
+        return 'Boatman ${user.name}';
+      default:
+        return user.name;
+    }
+  }
+
+  String get _viewLabel {
+    switch (role) {
+      case MembershipRole.admin:
+        if (team != null) return 'Admin → ${team!.name}';
+        return 'Organization View';
+      case MembershipRole.coach:
+        return 'Coach View';
+      case MembershipRole.boatman:
+        return 'Boatman View';
+      case MembershipRole.rower:
+        return 'Rower';
+      case MembershipRole.coxswain:
+        return 'Coxswain';
+      case MembershipRole.athlete:
+        return 'Athlete';
+    }
+  }
+
+  String get _compactTitle {
+    if (currentIndex == 0) return 'Home';
+    return tabTitles[currentIndex];
+  }
+
+  String get _compactSubtitle {
+    if (currentIndex == 0) return '';
+    return tabSubtitles[currentIndex];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top;
+    final contentHeight = _lerpDouble(
+      _expandedHeight,
+      _compactHeight,
+      collapse,
+    );
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(20, topPadding + 8, 20, 0),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [primaryColor, secondaryColor],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        // No rounded corners — flat bar
+      ),
+      child: SizedBox(
+        height: contentHeight,
+        child: Stack(
+          children: [
+            // ── Expanded content (Home) ──
+            Opacity(
+              opacity: (1.0 - collapse).clamp(0.0, 1.0),
+              child: IgnorePointer(
+                ignoring: collapse > 0.5,
+                child: _buildExpandedContent(context),
+              ),
+            ),
+            // ── Compact content (other tabs) ──
+            Opacity(
+              opacity: collapse.clamp(0.0, 1.0),
+              child: IgnorePointer(
+                ignoring: collapse < 0.5,
+                child: _buildCompactContent(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandedContent(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildTopRow(context),
+        const SizedBox(height: 8),
+        Center(
+          child: Icon(
+            Icons.house_outlined,
+            size: 48,
+            color: _textColor.withOpacity(0.25),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Welcome back,',
+          style: TextStyle(color: _subtextColor, fontSize: 14),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          _roleDisplayName,
+          style: TextStyle(
+            color: _textColor,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        if (team != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            team!.name,
+            style: TextStyle(
+              color: _subtextColor,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+        if (organization != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            organization!.name,
+            style: TextStyle(color: _textColor.withOpacity(0.5), fontSize: 13),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCompactContent(BuildContext context) {
+    return Column(
+      children: [
+        _buildTopRow(context),
+        const Spacer(),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _compactTitle,
+                    style: TextStyle(
+                      color: _textColor,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (_compactSubtitle.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      _compactSubtitle,
+                      style: TextStyle(color: _subtextColor, fontSize: 13),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (team != null)
+                  Text(
+                    team!.name,
+                    style: TextStyle(
+                      color: _subtextColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                if (organization != null)
+                  Text(
+                    organization!.name,
+                    style: TextStyle(
+                      color: _textColor.withOpacity(0.5),
+                      fontSize: 11,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+      ],
+    );
+  }
+
+  Widget _buildTopRow(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        if (memberships.length > 1 || role == MembershipRole.admin)
+          TextButton.icon(
+            onPressed: () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (context) =>
+                      TeamSelectorScreen(user: user, memberships: memberships),
+                ),
+              );
+            },
+            icon: Icon(Icons.swap_horiz, color: _textColor, size: 20),
+            label: Text(
+              'Switch',
+              style: TextStyle(color: _textColor, fontSize: 13),
+            ),
+          )
+        else
+          const SizedBox(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: _textColor.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            _viewLabel,
+            style: TextStyle(
+              color: _textColor,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static double _lerpDouble(double a, double b, double t) {
+    return a + (b - a) * t;
   }
 }
