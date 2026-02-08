@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../models/organization.dart';
 import '../models/membership.dart';
-import '../models/team.dart';
 import '../services/team_service.dart';
 import 'dashboard_screen.dart';
 import '../services/user_service.dart';

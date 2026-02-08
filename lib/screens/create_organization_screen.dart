@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/user.dart';
-import '../models/organization.dart';
 import '../models/membership.dart';
 import '../services/organization_service.dart';
 import '../services/membership_service.dart';
