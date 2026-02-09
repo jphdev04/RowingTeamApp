@@ -18,12 +18,21 @@ void main() async {
   runApp(const MyApp());
 }
 
+class BoathouseScrollBehavior extends ScrollBehavior {
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    // ClampingScrollPhysics stops at the edge — no stretch/bounce
+    return const ClampingScrollPhysics();
+  }
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      scrollBehavior: BoathouseScrollBehavior(),
       title: 'The Boathouse',
       theme: ThemeData(
         primarySwatch: Colors.blue,

@@ -5,6 +5,7 @@ import '../models/team.dart';
 import '../models/organization.dart';
 import '../services/equipment_service.dart';
 import '../services/team_service.dart';
+import '../utils/boathouse_styles.dart';
 
 class AddEquipmentScreen extends StatefulWidget {
   final String organizationId;
@@ -371,13 +372,10 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
                     const SizedBox(height: 16),
 
                     // Equipment Type
-                    DropdownButtonFormField<EquipmentType>(
+                    BoathouseStyles.dropdown<EquipmentType>(
+                      primaryColor: primaryColor,
                       value: _selectedType,
-                      decoration: const InputDecoration(
-                        labelText: 'Equipment Type *',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.category),
-                      ),
+                      labelText: 'Equipment Type *',
                       items: EquipmentType.values.map((type) {
                         String displayName =
                             type.name[0].toUpperCase() + type.name.substring(1);
@@ -399,33 +397,28 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
                         });
                       },
                     ),
-
                     if (_selectedType != null) ...[
                       const SizedBox(height: 16),
 
                       // Name (optional for most, hidden for ergs)
                       if (_selectedType != EquipmentType.erg)
-                        TextFormField(
+                        BoathouseStyles.textField(
+                          primaryColor: primaryColor,
                           controller: _nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Name (Optional)',
-                            border: OutlineInputBorder(),
-                            hintText: 'e.g., "Blue Boat", "Fast Eight"',
-                            prefixIcon: Icon(Icons.label),
-                          ),
+                          labelText: 'Name (Optional)',
+                          validator: (v) =>
+                              v == null || v.isEmpty ? 'Required' : null,
                         ),
 
                       if (_selectedType != EquipmentType.erg)
                         const SizedBox(height: 16),
 
                       // Manufacturer
-                      DropdownButtonFormField<String>(
+                      BoathouseStyles.dropdown<String>(
+                        primaryColor: primaryColor,
                         value: _selectedManufacturer,
-                        decoration: const InputDecoration(
-                          labelText: 'Manufacturer *',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.business),
-                        ),
+                        labelText: 'Manufacturer',
+
                         items: _getManufacturerOptions().map((manufacturer) {
                           return DropdownMenuItem(
                             value: manufacturer,
@@ -445,13 +438,10 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
                       // Model
                       if (_selectedType == EquipmentType.erg &&
                           _getErgModelOptions().isNotEmpty)
-                        DropdownButtonFormField<String>(
+                        BoathouseStyles.dropdown<String>(
+                          primaryColor: primaryColor,
                           value: _selectedErgModel,
-                          decoration: const InputDecoration(
-                            labelText: 'Model',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.info),
-                          ),
+                          labelText: 'Model',
                           items: _getErgModelOptions().map((model) {
                             return DropdownMenuItem(
                               value: model,
@@ -464,42 +454,36 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
                           },
                         )
                       else
-                        TextFormField(
+                        BoathouseStyles.textField(
+                          primaryColor: primaryColor,
                           controller: _modelController,
-                          decoration: const InputDecoration(
-                            labelText: 'Model (Optional)',
-                            border: OutlineInputBorder(),
-                            hintText: 'e.g., "Club", "Elite"',
-                            prefixIcon: Icon(Icons.info),
-                          ),
+                          labelText: 'Model (Optional)',
+                          validator: (v) =>
+                              v == null || v.isEmpty ? 'Required' : null,
                         ),
-
                       const SizedBox(height: 16),
 
                       // Year and Serial Number row
                       Row(
                         children: [
                           Expanded(
-                            child: TextFormField(
+                            child: BoathouseStyles.textField(
+                              primaryColor: primaryColor,
                               controller: _yearController,
-                              decoration: const InputDecoration(
-                                labelText: 'Year',
-                                border: OutlineInputBorder(),
-                                hintText: '2020',
-                                prefixIcon: Icon(Icons.calendar_today),
-                              ),
+                              labelText: 'Year of Production',
+                              validator: (v) =>
+                                  v == null || v.isEmpty ? 'Required' : null,
                               keyboardType: TextInputType.number,
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: TextFormField(
+                            child: BoathouseStyles.textField(
+                              primaryColor: primaryColor,
                               controller: _serialNumberController,
-                              decoration: const InputDecoration(
-                                labelText: 'Serial #',
-                                border: OutlineInputBorder(),
-                                prefixIcon: Icon(Icons.tag),
-                              ),
+                              labelText: 'Serial #',
+                              validator: (v) =>
+                                  v == null || v.isEmpty ? 'Required' : null,
                             ),
                           ),
                         ],
@@ -546,14 +530,12 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: TextFormField(
+                            child: BoathouseStyles.textField(
+                              primaryColor: primaryColor,
                               controller: _purchasePriceController,
-                              decoration: const InputDecoration(
-                                labelText: 'Price',
-                                border: OutlineInputBorder(),
-                                prefixIcon: Icon(Icons.attach_money),
-                                hintText: '5000',
-                              ),
+                              labelText: 'Purchase Price',
+                              validator: (v) =>
+                                  v == null || v.isEmpty ? 'Required' : null,
                               keyboardType: TextInputType.number,
                             ),
                           ),
@@ -644,14 +626,12 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
                       const SizedBox(height: 24),
 
                       // Notes
-                      TextFormField(
+                      BoathouseStyles.textField(
+                        primaryColor: primaryColor,
                         controller: _notesController,
-                        decoration: const InputDecoration(
-                          labelText: 'Notes (Optional)',
-                          border: OutlineInputBorder(),
-                          hintText: 'Any additional information',
-                          prefixIcon: Icon(Icons.notes),
-                        ),
+                        labelText: 'Notes (Optional)',
+                        validator: (v) =>
+                            v == null || v.isEmpty ? 'Required' : null,
                         maxLines: 4,
                       ),
 
@@ -703,6 +683,10 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
   }
 
   Widget _buildShellFields() {
+    final primaryColor =
+        widget.team?.primaryColorObj ??
+        widget.organization?.primaryColorObj ??
+        const Color(0xFF1976D2);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -713,13 +697,11 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
         const SizedBox(height: 16),
 
         // Boat Type
-        DropdownButtonFormField<ShellType>(
+        BoathouseStyles.dropdown<ShellType>(
+          primaryColor: primaryColor,
           value: _selectedShellType,
-          decoration: const InputDecoration(
-            labelText: 'Boat Type *',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.rowing),
-          ),
+          labelText: 'Boat Class',
+
           items: ShellType.values.map((type) {
             String display = '';
             switch (type) {
@@ -758,13 +740,10 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
         const SizedBox(height: 16),
 
         // Rigging Type
-        DropdownButtonFormField<RiggingType>(
+        BoathouseStyles.dropdown<RiggingType>(
+          primaryColor: primaryColor,
           value: _selectedRiggingType,
-          decoration: const InputDecoration(
-            labelText: 'Rigging',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.settings),
-          ),
+          labelText: 'Rigging',
           items: RiggingType.values.map((type) {
             String display = '';
             switch (type) {
@@ -787,14 +766,11 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
 
         if (_selectedRiggingType == RiggingType.dualRigged) ...[
           const SizedBox(height: 16),
-          TextFormField(
+          BoathouseStyles.textField(
+            primaryColor: primaryColor,
             controller: _currentRiggingController,
-            decoration: const InputDecoration(
-              labelText: 'Current Setup',
-              border: OutlineInputBorder(),
-              hintText: 'e.g., Currently rigged for sweep',
-              prefixIcon: Icon(Icons.info_outline),
-            ),
+            labelText: 'Current Rig (Sweep/Scull)',
+            validator: (v) => v == null || v.isEmpty ? 'Required' : null,
           ),
         ],
       ],
@@ -802,6 +778,10 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
   }
 
   Widget _buildOarFields() {
+    final primaryColor =
+        widget.team?.primaryColorObj ??
+        widget.organization?.primaryColorObj ??
+        const Color(0xFF1976D2);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -812,13 +792,10 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
         const SizedBox(height: 16),
 
         // Oar Type
-        DropdownButtonFormField<OarType>(
+        BoathouseStyles.dropdown<OarType>(
+          primaryColor: primaryColor,
           value: _selectedOarType,
-          decoration: const InputDecoration(
-            labelText: 'Oar Type *',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.sports),
-          ),
+          labelText: 'Oar Type',
           items: OarType.values.map((type) {
             return DropdownMenuItem(
               value: type,
@@ -836,27 +813,21 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
         Row(
           children: [
             Expanded(
-              child: TextFormField(
+              child: BoathouseStyles.textField(
+                primaryColor: primaryColor,
                 controller: _oarCountController,
-                decoration: const InputDecoration(
-                  labelText: 'Number of Oars *',
-                  border: OutlineInputBorder(),
-                  hintText: '8',
-                  prefixIcon: Icon(Icons.numbers),
-                ),
+                labelText: 'Number of Oars',
+                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                 keyboardType: TextInputType.number,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: TextFormField(
+              child: BoathouseStyles.textField(
+                primaryColor: primaryColor,
                 controller: _oarLengthController,
-                decoration: const InputDecoration(
-                  labelText: 'Length (cm)',
-                  border: OutlineInputBorder(),
-                  hintText: '370',
-                  prefixIcon: Icon(Icons.straighten),
-                ),
+                labelText: 'Length (cm)',
+                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                 keyboardType: TextInputType.number,
               ),
             ),
@@ -866,13 +837,10 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
         const SizedBox(height: 16),
 
         // Blade Type
-        DropdownButtonFormField<String>(
+        BoathouseStyles.dropdown<String>(
+          primaryColor: primaryColor,
           value: _selectedBladeType,
-          decoration: const InputDecoration(
-            labelText: 'Blade Type',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.palette),
-          ),
+          labelText: 'Blade Type',
           items: _getBladeTypeOptions().map((blade) {
             return DropdownMenuItem(value: blade, child: Text(blade));
           }).toList(),
@@ -885,6 +853,10 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
   }
 
   Widget _buildCoxboxFields() {
+    final primaryColor =
+        widget.team?.primaryColorObj ??
+        widget.organization?.primaryColorObj ??
+        const Color(0xFF1976D2);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -905,13 +877,10 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
 
         const SizedBox(height: 16),
 
-        DropdownButtonFormField<String>(
+        BoathouseStyles.dropdown<String>(
+          primaryColor: primaryColor,
           value: _batteryStatus,
-          decoration: const InputDecoration(
-            labelText: 'Battery Status',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.battery_full),
-          ),
+          labelText: 'Battery Status',
           items: ['Good', 'Fair', 'Needs Replacement'].map((status) {
             return DropdownMenuItem(value: status, child: Text(status));
           }).toList(),
@@ -924,6 +893,10 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
   }
 
   Widget _buildLaunchFields() {
+    final primaryColor =
+        widget.team?.primaryColorObj ??
+        widget.organization?.primaryColorObj ??
+        const Color(0xFF1976D2);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -944,26 +917,20 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
 
         if (_gasTankAssigned) ...[
           const SizedBox(height: 16),
-          TextFormField(
+          BoathouseStyles.textField(
+            primaryColor: primaryColor,
             controller: _tankNumberController,
-            decoration: const InputDecoration(
-              labelText: 'Tank Number',
-              border: OutlineInputBorder(),
-              hintText: 'e.g., Tank #3',
-              prefixIcon: Icon(Icons.local_gas_station),
-            ),
+            labelText: 'Tank ID',
+            validator: (v) => v == null || v.isEmpty ? 'Required' : null,
           ),
         ],
 
         const SizedBox(height: 16),
 
-        DropdownButtonFormField<String>(
+        BoathouseStyles.dropdown<String>(
+          primaryColor: primaryColor,
           value: _fuelType,
-          decoration: const InputDecoration(
-            labelText: 'Fuel Type',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.local_gas_station),
-          ),
+          labelText: 'Event Type',
           items: ['Gas', 'Diesel'].map((fuel) {
             return DropdownMenuItem(value: fuel, child: Text(fuel));
           }).toList(),
@@ -976,6 +943,10 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
   }
 
   Widget _buildErgFields() {
+    final primaryColor =
+        widget.team?.primaryColorObj ??
+        widget.organization?.primaryColorObj ??
+        const Color(0xFF1976D2);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -985,14 +956,11 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
         ),
         const SizedBox(height: 16),
 
-        TextFormField(
+        BoathouseStyles.textField(
+          primaryColor: primaryColor,
           controller: _ergIdController,
-          decoration: const InputDecoration(
-            labelText: 'Erg ID/Number *',
-            border: OutlineInputBorder(),
-            hintText: 'e.g., Erg #12 or "Back Left"',
-            prefixIcon: Icon(Icons.tag),
-          ),
+          labelText: 'Erg ID',
+          validator: (v) => v == null || v.isEmpty ? 'Required' : null,
         ),
       ],
     );
