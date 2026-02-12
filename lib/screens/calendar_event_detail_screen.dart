@@ -13,6 +13,7 @@ import '../widgets/team_header.dart';
 import 'edit_erg_workout_screen.dart';
 import 'create_workout_screen.dart';
 import 'create_water_workout_screen.dart';
+import 'manage_lineups_screen.dart';
 
 class CalendarEventDetailScreen extends StatefulWidget {
   final AppUser user;
@@ -497,6 +498,9 @@ class _CalendarEventDetailScreenState extends State<CalendarEventDetailScreen> {
           ),
           if (template != null && session.category == WorkoutCategory.erg)
             _buildErgDetails(template),
+          if (session.category == WorkoutCategory.water ||
+              session.category == WorkoutCategory.race)
+            _buildLineupSection(session),
           if (_isCoachOrAdmin) ...[
             const Divider(height: 1),
             InkWell(
@@ -670,6 +674,188 @@ class _CalendarEventDetailScreenState extends State<CalendarEventDetailScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildLineupSection(WorkoutSession session) {
+    final lineups = session.lineups ?? [];
+    final hasLineups =
+        lineups.isNotEmpty && lineups.any((pl) => pl.boats.isNotEmpty);
+    final boats = hasLineups ? lineups.first.boats : <BoatLineup>[];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.people, size: 16, color: Colors.grey[600]),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Lineups',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    if (hasLineups) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${boats.length} ${boats.length == 1 ? 'boat' : 'boats'}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green[700],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                if (_isCoachOrAdmin)
+                  GestureDetector(
+                    onTap: () => _navigateToLineups(session),
+                    child: Text(
+                      hasLineups ? 'Edit' : 'Create',
+                      style: TextStyle(
+                        color: primaryColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+
+            if (!hasLineups) ...[
+              const SizedBox(height: 10),
+              Text(
+                _isCoachOrAdmin
+                    ? 'No lineups yet — tap Create to set up boats'
+                    : 'Lineups not yet posted',
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+            ] else ...[
+              const SizedBox(height: 10),
+              ...boats.map((boat) => _buildLineupBoatRow(boat)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLineupBoatRow(BoatLineup boat) {
+    final totalSeats = _seatsForBoatClass(boat.boatClass);
+    final filledSeats = boat.seats.where((s) => s.userId != null).length;
+    final isFull = filledSeats == totalSeats;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          // Boat class badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              boat.boatClass,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: primaryColor,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // Boat name
+          Expanded(
+            child: Text(
+              boat.boatName,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[700],
+              ),
+            ),
+          ),
+
+          // Seat count + status
+          Text(
+            '$filledSeats/$totalSeats',
+            style: TextStyle(
+              fontSize: 12,
+              color: isFull ? Colors.green[600] : Colors.orange[600],
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Icon(
+            isFull ? Icons.check_circle : Icons.warning_amber_rounded,
+            color: isFull ? Colors.green : Colors.orange,
+            size: 14,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateToLineups(WorkoutSession session) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ManageLineupsScreen(
+          user: widget.user,
+          currentMembership: widget.currentMembership,
+          organization: widget.organization,
+          team: widget.team,
+          session: session,
+        ),
+      ),
+    ).then((_) => _refreshEvent());
+  }
+
+  int _seatsForBoatClass(String boatClass) {
+    switch (boatClass) {
+      case '8+':
+        return 8;
+      case '4+':
+      case '4-':
+      case '4x':
+      case '4x+':
+        return 4;
+      case '2-':
+      case '2x':
+        return 2;
+      case '1x':
+        return 1;
+      default:
+        return 0;
+    }
   }
 
   // ═══════════════════════════════════════════════════════════

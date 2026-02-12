@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:uuid/uuid.dart';
 import '../models/equipment.dart';
 
 class EquipmentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String _collection = 'equipment';
 
-  // Get equipment by type (accessible to a specific team)
+  // ── Queries ─────────────────────────────────────────────
+
   Stream<List<Equipment>> getEquipmentByType(
     String organizationId,
     EquipmentType type, {
@@ -21,11 +23,7 @@ class EquipmentService {
           final allEquipment = snapshot.docs
               .map((doc) => Equipment.fromMap(doc.data()))
               .toList();
-
-          // If no team filter, return all org equipment
           if (teamId == null || teamId.isEmpty) return allEquipment;
-
-          // Filter to equipment this team can access
           return allEquipment
               .where(
                 (e) =>
@@ -35,7 +33,6 @@ class EquipmentService {
         });
   }
 
-  // Get all equipment for an organization
   Stream<List<Equipment>> getEquipmentByTeam(String organizationId) {
     return _firestore
         .collection(_collection)
@@ -48,7 +45,13 @@ class EquipmentService {
         });
   }
 
-  // Get single equipment
+  /// Stream equipment that needs attention (damaged or under maintenance).
+  Stream<List<Equipment>> getNeedsAttention(String organizationId) {
+    return getEquipmentByTeam(
+      organizationId,
+    ).map((list) => list.where((e) => e.needsAttention).toList());
+  }
+
   Future<Equipment?> getEquipment(String id) async {
     try {
       DocumentSnapshot doc = await _firestore
@@ -64,7 +67,8 @@ class EquipmentService {
     }
   }
 
-  // Add equipment
+  // ── CRUD ────────────────────────────────────────────────
+
   Future<void> addEquipment(Equipment equipment) async {
     try {
       final docRef = _firestore.collection(_collection).doc();
@@ -75,7 +79,6 @@ class EquipmentService {
     }
   }
 
-  // Update equipment
   Future<void> updateEquipment(Equipment equipment) async {
     try {
       await _firestore
@@ -87,7 +90,6 @@ class EquipmentService {
     }
   }
 
-  // Delete equipment
   Future<void> deleteEquipment(String equipmentId) async {
     try {
       await _firestore.collection(_collection).doc(equipmentId).delete();
@@ -98,7 +100,6 @@ class EquipmentService {
 
   // ── Rigging ─────────────────────────────────────────────
 
-  /// Update a shell's rigging setup.
   Future<void> updateRiggingSetup(
     String equipmentId,
     RiggingSetup setup,
@@ -112,8 +113,6 @@ class EquipmentService {
     }
   }
 
-  /// Switch a dual-rigged shell's active configuration.
-  /// Changes the activeShellType to the target shell type.
   Future<void> switchDualRigConfig(
     String equipmentId,
     ShellType targetShellType,
@@ -121,15 +120,12 @@ class EquipmentService {
     try {
       await _firestore.collection(_collection).doc(equipmentId).update({
         'activeShellType': targetShellType.name,
-        // Clear rigging setup when switching — user should set new rig
-        // (sweep→scull means rigging doesn't apply; scull→sweep needs new rig)
       });
     } catch (e) {
       throw 'Error switching dual-rig config: $e';
     }
   }
 
-  /// Clear the active shell type override (revert to base shellType).
   Future<void> resetDualRigConfig(String equipmentId) async {
     try {
       await _firestore.collection(_collection).doc(equipmentId).update({
@@ -142,7 +138,6 @@ class EquipmentService {
 
   // ── Damage Reports ──────────────────────────────────────
 
-  // Add damage report
   Future<void> addDamageReport(String equipmentId, DamageReport report) async {
     try {
       final equipment = await getEquipment(equipmentId);
@@ -160,7 +155,6 @@ class EquipmentService {
     }
   }
 
-  // Resolve damage report
   Future<void> resolveDamageReport(
     String equipmentId,
     String reportId,
@@ -195,6 +189,165 @@ class EquipmentService {
       }
     } catch (e) {
       throw 'Error resolving damage report: $e';
+    }
+  }
+
+  // ── Maintenance Workflow ────────────────────────────────
+
+  /// Move equipment from "damaged" to "maintenance" status.
+  /// Creates a status_change MaintenanceEntry and optionally links
+  /// the unresolved damage reports it's addressing.
+  Future<void> startMaintenance({
+    required String equipmentId,
+    required String authorId,
+    required String authorName,
+    required String notes,
+    List<String>? damageReportIds,
+  }) async {
+    try {
+      final equipment = await getEquipment(equipmentId);
+      if (equipment == null) throw 'Equipment not found';
+
+      // Determine which damage reports to link
+      final linkedIds =
+          damageReportIds ??
+          equipment.unresolvedDamageReports.map((r) => r.id).toList();
+
+      final entry = MaintenanceEntry(
+        id: const Uuid().v4(),
+        type: MaintenanceEntryType.statusChange,
+        authorId: authorId,
+        authorName: authorName,
+        createdAt: DateTime.now(),
+        notes: notes,
+        newStatus: EquipmentStatus.maintenance,
+        linkedDamageReportIds: linkedIds,
+      );
+
+      final updatedLog = [...equipment.maintenanceLog, entry];
+      final updatedEquipment = equipment.copyWith(
+        status: EquipmentStatus.maintenance,
+        maintenanceLog: updatedLog,
+        lastMaintenanceDate: DateTime.now(),
+      );
+      await updateEquipment(updatedEquipment);
+    } catch (e) {
+      throw 'Error starting maintenance: $e';
+    }
+  }
+
+  /// Add a progress update to the maintenance log.
+  Future<void> addMaintenanceUpdate({
+    required String equipmentId,
+    required String authorId,
+    required String authorName,
+    required String notes,
+  }) async {
+    try {
+      final equipment = await getEquipment(equipmentId);
+      if (equipment == null) throw 'Equipment not found';
+
+      final entry = MaintenanceEntry(
+        id: const Uuid().v4(),
+        type: MaintenanceEntryType.progressUpdate,
+        authorId: authorId,
+        authorName: authorName,
+        createdAt: DateTime.now(),
+        notes: notes,
+      );
+
+      final updatedLog = [...equipment.maintenanceLog, entry];
+      final updatedEquipment = equipment.copyWith(
+        maintenanceLog: updatedLog,
+        lastMaintenanceDate: DateTime.now(),
+      );
+      await updateEquipment(updatedEquipment);
+    } catch (e) {
+      throw 'Error adding maintenance update: $e';
+    }
+  }
+
+  /// Complete maintenance — resolves all linked damage reports,
+  /// sets status back to available, and logs a resolution entry.
+  Future<void> completeMaintenance({
+    required String equipmentId,
+    required String authorId,
+    required String authorName,
+    required String notes,
+  }) async {
+    try {
+      final equipment = await getEquipment(equipmentId);
+      if (equipment == null) throw 'Equipment not found';
+
+      // Create resolution entry
+      final entry = MaintenanceEntry(
+        id: const Uuid().v4(),
+        type: MaintenanceEntryType.resolution,
+        authorId: authorId,
+        authorName: authorName,
+        createdAt: DateTime.now(),
+        notes: notes,
+        newStatus: EquipmentStatus.available,
+        linkedDamageReportIds: equipment.unresolvedDamageReports
+            .map((r) => r.id)
+            .toList(),
+      );
+
+      // Resolve all unresolved damage reports
+      final updatedDamageReports = equipment.damageReports.map((report) {
+        if (!report.isResolved) {
+          return report.copyWith(
+            isResolved: true,
+            resolvedAt: DateTime.now(),
+            resolvedBy: authorId,
+            resolutionNotes: 'Resolved via maintenance: $notes',
+          );
+        }
+        return report;
+      }).toList();
+
+      final updatedLog = [...equipment.maintenanceLog, entry];
+      final updatedEquipment = equipment.copyWith(
+        status: EquipmentStatus.available,
+        isDamaged: false,
+        damageReports: updatedDamageReports,
+        maintenanceLog: updatedLog,
+        lastMaintenanceDate: DateTime.now(),
+      );
+      await updateEquipment(updatedEquipment);
+    } catch (e) {
+      throw 'Error completing maintenance: $e';
+    }
+  }
+
+  // ── Coxbox / SpeedCoach Assignment ─────────────────────
+
+  /// Assign a coxbox to a coxswain (by userId) or
+  /// a speedcoach to a shell (by equipmentId).
+  Future<void> assignCoxbox({
+    required String equipmentId,
+    required String assignedToId,
+    required String assignedToName,
+  }) async {
+    try {
+      await _firestore.collection(_collection).doc(equipmentId).update({
+        'assignedToId': assignedToId,
+        'assignedToName': assignedToName,
+      });
+    } catch (e) {
+      throw 'Error assigning coxbox: $e';
+    }
+  }
+
+  /// Remove coxbox/speedcoach assignment.
+  Future<void> unassignCoxbox(String equipmentId) async {
+    try {
+      await _firestore.collection(_collection).doc(equipmentId).update({
+        'assignedToId': null,
+        'assignedToName': null,
+      });
+    } catch (e) {
+      throw 'Error unassigning coxbox: $e';
     }
   }
 }

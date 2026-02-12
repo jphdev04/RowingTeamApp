@@ -481,6 +481,7 @@ class BoathouseStyles {
     required VoidCallback? onPressed,
     bool isLoading = false,
     double height = 52,
+    IconData? icon,
   }) {
     final onPrimary = primaryColor.computeLuminance() > 0.5
         ? Colors.black

@@ -22,6 +22,16 @@ enum EquipmentStatus { available, inUse, damaged, maintenance }
 /// Which side a rigger is on for a specific seat.
 enum RiggerSide { port, starboard }
 
+/// Coxbox sub-type: traditional coxbox vs speed/stroke coach.
+enum CoxboxType { coxbox, speedcoach }
+
+/// Type of maintenance log entry.
+enum MaintenanceEntryType {
+  statusChange, // e.g., "Moved to maintenance", "Marked available"
+  progressUpdate, // e.g., "Replaced starboard rigger bolt"
+  resolution, // Final entry when maintenance is completed
+}
+
 // ════════════════════════════════════════════════════════════
 // RIGGING SETUP
 // ════════════════════════════════════════════════════════════
@@ -50,9 +60,9 @@ class RiggerPosition {
 /// Complete rigging configuration for a shell.
 /// Only meaningful for sweep boats — sculling boats don't need side assignments.
 class RiggingSetup {
-  final String name; // e.g., "Standard Port Stroke", "Bucket 7-6", custom name
-  final List<RiggerPosition> positions; // one per rowing seat
-  final bool isDefault; // whether this is the shell's current active rig
+  final String name;
+  final List<RiggerPosition> positions;
+  final bool isDefault;
 
   RiggingSetup({
     required this.name,
@@ -84,7 +94,6 @@ class RiggingSetup {
     isDefault: isDefault ?? this.isDefault,
   );
 
-  /// Validates that the rig has equal port and starboard riggers.
   bool get isBalanced {
     if (positions.isEmpty) return true;
     final portCount = positions.where((p) => p.side == RiggerSide.port).length;
@@ -94,7 +103,6 @@ class RiggingSetup {
     return portCount == stbdCount;
   }
 
-  /// Returns which side the stroke seat is on.
   RiggerSide? get strokeSide {
     if (positions.isEmpty) return null;
     final strokeSeat = positions
@@ -103,13 +111,11 @@ class RiggingSetup {
     return strokeSeat.isNotEmpty ? strokeSeat.first.side : null;
   }
 
-  /// Returns a human-readable description of the rig pattern.
   String get description {
     if (positions.isEmpty) return 'No rigging set';
     final strokeS = strokeSide;
     if (strokeS == null) return name;
 
-    // Check if it's standard alternating
     bool isStandardAlternating = true;
     for (final p in positions) {
       final expectedSide = (p.seat % 2 == positions.length % 2)
@@ -129,7 +135,6 @@ class RiggingSetup {
           : 'Standard (starboard stroke)';
     }
 
-    // Check for buckets — consecutive same-side seats
     final buckets = <String>[];
     for (int i = positions.length; i > 1; i--) {
       final current = positions.firstWhere(
@@ -161,13 +166,11 @@ class RiggingSetup {
 // ════════════════════════════════════════════════════════════
 
 class RiggingPresets {
-  /// Standard port-stroke alternating rig for N seats.
   static RiggingSetup standardPortStroke(int seatCount) {
     return RiggingSetup(
       name: 'Standard (port stroke)',
       positions: List.generate(seatCount, (i) {
         final seat = i + 1;
-        // Stroke (highest seat) is port, then alternates
         final isPort = (seat % 2 == seatCount % 2);
         return RiggerPosition(
           seat: seat,
@@ -178,7 +181,6 @@ class RiggingPresets {
     );
   }
 
-  /// Standard starboard-stroke alternating rig for N seats.
   static RiggingSetup standardStarboardStroke(int seatCount) {
     return RiggingSetup(
       name: 'Standard (starboard stroke)',
@@ -193,8 +195,6 @@ class RiggingPresets {
     );
   }
 
-  /// Italian/bucket rig — bucket at stroke+7 (or top two seats).
-  /// Stroke and seat below stroke are on same side, then alternates.
   static RiggingSetup bucketTop(
     int seatCount, {
     RiggerSide strokeSide = RiggerSide.port,
@@ -208,12 +208,10 @@ class RiggingPresets {
     for (int seat = 1; seat <= seatCount; seat++) {
       RiggerSide side;
       if (seat == seatCount || seat == seatCount - 1) {
-        // Top bucket: stroke + seat below are same side
         side = strokeSide;
       } else if (seat == seatCount - 2 || seat == seatCount - 3) {
         side = opposite;
       } else {
-        // Continue alternating in pairs going down
         final pairIndex = (seatCount - 1 - seat) ~/ 2;
         side = pairIndex % 2 == 0 ? strokeSide : opposite;
       }
@@ -226,7 +224,6 @@ class RiggingPresets {
     );
   }
 
-  /// German rig — bucket in the middle (seats 5-4 or 3-2 for a four).
   static RiggingSetup bucketMiddle(
     int seatCount, {
     RiggerSide strokeSide = RiggerSide.port,
@@ -247,17 +244,14 @@ class RiggingPresets {
       } else if (seat == seatCount - 1) {
         side = opposite;
       } else if (seat == midHigh || seat == midLow) {
-        // Middle bucket — same side as whichever makes it balanced
         side = opposite;
       } else {
-        // Standard alternating from stroke down, but skip the bucket
         final distFromStroke = seatCount - seat;
         side = distFromStroke % 2 == 0 ? strokeSide : opposite;
       }
       positions.add(RiggerPosition(seat: seat, side: side));
     }
 
-    // Verify balance; if not balanced, fall back
     final setup = RiggingSetup(
       name: 'Bucket $midHigh-$midLow',
       positions: positions,
@@ -266,9 +260,8 @@ class RiggingPresets {
     return setup;
   }
 
-  /// Get all applicable presets for a given seat count.
   static List<RiggingSetup> presetsForSeatCount(int seatCount) {
-    if (seatCount <= 1) return []; // Singles don't need rigging
+    if (seatCount <= 1) return [];
     if (seatCount == 2) {
       return [standardPortStroke(2), standardStarboardStroke(2)];
     }
@@ -287,6 +280,89 @@ class RiggingPresets {
 
     return presets;
   }
+}
+
+// ════════════════════════════════════════════════════════════
+// MAINTENANCE ENTRY
+// ════════════════════════════════════════════════════════════
+
+class MaintenanceEntry {
+  final String id;
+  final MaintenanceEntryType type;
+  final String authorId;
+  final String authorName;
+  final DateTime createdAt;
+  final String notes;
+
+  /// For status changes — what the status was changed to.
+  final EquipmentStatus? newStatus;
+
+  /// Optional: IDs of damage reports this entry addresses.
+  final List<String> linkedDamageReportIds;
+
+  MaintenanceEntry({
+    required this.id,
+    required this.type,
+    required this.authorId,
+    required this.authorName,
+    required this.createdAt,
+    required this.notes,
+    this.newStatus,
+    this.linkedDamageReportIds = const [],
+  });
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'type': type.name,
+    'authorId': authorId,
+    'authorName': authorName,
+    'createdAt': createdAt.toIso8601String(),
+    'notes': notes,
+    'newStatus': newStatus?.name,
+    'linkedDamageReportIds': linkedDamageReportIds,
+  };
+
+  factory MaintenanceEntry.fromMap(Map<String, dynamic> map) =>
+      MaintenanceEntry(
+        id: map['id'] ?? '',
+        type: MaintenanceEntryType.values.firstWhere(
+          (e) => e.name == map['type'],
+          orElse: () => MaintenanceEntryType.progressUpdate,
+        ),
+        authorId: map['authorId'] ?? '',
+        authorName: map['authorName'] ?? '',
+        createdAt: DateTime.parse(map['createdAt']),
+        notes: map['notes'] ?? '',
+        newStatus: map['newStatus'] != null
+            ? EquipmentStatus.values.firstWhere(
+                (e) => e.name == map['newStatus'],
+                orElse: () => EquipmentStatus.available,
+              )
+            : null,
+        linkedDamageReportIds: List<String>.from(
+          map['linkedDamageReportIds'] ?? [],
+        ),
+      );
+
+  MaintenanceEntry copyWith({
+    String? id,
+    MaintenanceEntryType? type,
+    String? authorId,
+    String? authorName,
+    DateTime? createdAt,
+    String? notes,
+    EquipmentStatus? newStatus,
+    List<String>? linkedDamageReportIds,
+  }) => MaintenanceEntry(
+    id: id ?? this.id,
+    type: type ?? this.type,
+    authorId: authorId ?? this.authorId,
+    authorName: authorName ?? this.authorName,
+    createdAt: createdAt ?? this.createdAt,
+    notes: notes ?? this.notes,
+    newStatus: newStatus ?? this.newStatus,
+    linkedDamageReportIds: linkedDamageReportIds ?? this.linkedDamageReportIds,
+  );
 }
 
 // ════════════════════════════════════════════════════════════
@@ -317,26 +393,28 @@ class Equipment {
   // Shell-specific fields
   final ShellType? shellType;
   final RiggingType? riggingType;
-  final String? currentRiggingSetup; // For dual-rigged shells
+  final String? currentRiggingSetup;
 
   // ── Rigging ──
-  /// The shell's current rigging configuration (sweep boats only).
-  /// If null, defaults to standard port-stroke.
   final RiggingSetup? riggingSetup;
-
-  /// For dual-rigged shells: the currently active configuration.
-  /// When a dual-rigged shell is set to scull, this overrides shellType.
   final ShellType? activeShellType;
 
   // Oar-specific fields
   final OarType? oarType;
   final int? oarCount;
   final String? bladeType;
-  final double? oarLength; // in cm
+  final double? oarLength;
 
   // Coxbox-specific fields
+  final CoxboxType? coxboxType;
   final bool? microphoneIncluded;
   final String? batteryStatus;
+
+  /// Who/what this coxbox/speedcoach is assigned to.
+  /// For coxboxes: a coxswain's userId.
+  /// For speedcoaches: a shell's equipmentId (optional).
+  final String? assignedToId;
+  final String? assignedToName; // Denormalized for display
 
   // Launch-specific fields
   final bool? gasTankAssigned;
@@ -349,6 +427,9 @@ class Equipment {
   // Damage tracking
   final bool isDamaged;
   final List<DamageReport> damageReports;
+
+  // Maintenance tracking
+  final List<MaintenanceEntry> maintenanceLog;
 
   Equipment({
     required this.id,
@@ -376,18 +457,22 @@ class Equipment {
     this.oarCount,
     this.bladeType,
     this.oarLength,
+    this.coxboxType,
     this.microphoneIncluded,
     this.batteryStatus,
+    this.assignedToId,
+    this.assignedToName,
     this.gasTankAssigned,
     this.tankNumber,
     this.fuelType,
     this.ergId,
     this.isDamaged = false,
     this.damageReports = const [],
+    this.maintenanceLog = const [],
   });
 
-  /// Returns the effective shell type — uses activeShellType for dual-rigged,
-  /// otherwise falls back to shellType.
+  // ── Computed properties ──
+
   ShellType? get effectiveShellType {
     if (riggingType == RiggingType.dualRigged && activeShellType != null) {
       return activeShellType;
@@ -395,16 +480,13 @@ class Equipment {
     return shellType;
   }
 
-  /// Returns the effective rigging setup. If none is set, generates a
-  /// standard port-stroke default based on the shell type.
   RiggingSetup? get effectiveRiggingSetup {
     if (riggingSetup != null) return riggingSetup;
     final st = effectiveShellType;
     if (st == null) return null;
     final seatCount = _seatCountForShellType(st);
-    if (seatCount <= 1) return null; // Singles don't need rigging
-    if (_isScullShellType(st))
-      return null; // Sculling doesn't need side assignments
+    if (seatCount <= 1) return null;
+    if (_isScullShellType(st)) return null;
     return RiggingPresets.standardPortStroke(seatCount);
   }
 
@@ -419,6 +501,15 @@ class Equipment {
     if (st == null) return false;
     return _isScullShellType(st);
   }
+
+  /// Whether this equipment has any unresolved damage or is under maintenance.
+  bool get needsAttention =>
+      status == EquipmentStatus.damaged ||
+      status == EquipmentStatus.maintenance;
+
+  /// Unresolved damage reports only.
+  List<DamageReport> get unresolvedDamageReports =>
+      damageReports.where((r) => !r.isResolved).toList();
 
   bool _isScullShellType(ShellType st) {
     return st == ShellType.single ||
@@ -453,7 +544,10 @@ class Equipment {
       case EquipmentType.oar:
         return '$manufacturer ${_oarTypeDisplay(oarType)} Oars';
       case EquipmentType.coxbox:
-        return '$manufacturer Coxbox';
+        final label = coxboxType == CoxboxType.speedcoach
+            ? 'SpeedCoach'
+            : 'Coxbox';
+        return '$manufacturer $label';
       case EquipmentType.launch:
         return '$manufacturer Launch';
       case EquipmentType.erg:
@@ -515,14 +609,18 @@ class Equipment {
       'oarCount': oarCount,
       'bladeType': bladeType,
       'oarLength': oarLength,
+      'coxboxType': coxboxType?.name,
       'microphoneIncluded': microphoneIncluded,
       'batteryStatus': batteryStatus,
+      'assignedToId': assignedToId,
+      'assignedToName': assignedToName,
       'gasTankAssigned': gasTankAssigned,
       'tankNumber': tankNumber,
       'fuelType': fuelType,
       'ergId': ergId,
       'isDamaged': isDamaged,
       'damageReports': damageReports.map((r) => r.toMap()).toList(),
+      'maintenanceLog': maintenanceLog.map((e) => e.toMap()).toList(),
     };
   }
 
@@ -573,8 +671,16 @@ class Equipment {
       oarCount: map['oarCount'],
       bladeType: map['bladeType'],
       oarLength: map['oarLength']?.toDouble(),
+      coxboxType: map['coxboxType'] != null
+          ? CoxboxType.values.firstWhere(
+              (e) => e.name == map['coxboxType'],
+              orElse: () => CoxboxType.coxbox,
+            )
+          : null,
       microphoneIncluded: map['microphoneIncluded'],
       batteryStatus: map['batteryStatus'],
+      assignedToId: map['assignedToId'],
+      assignedToName: map['assignedToName'],
       gasTankAssigned: map['gasTankAssigned'],
       tankNumber: map['tankNumber'],
       fuelType: map['fuelType'],
@@ -583,6 +689,11 @@ class Equipment {
       damageReports:
           (map['damageReports'] as List<dynamic>?)
               ?.map((r) => DamageReport.fromMap(r as Map<String, dynamic>))
+              .toList() ??
+          [],
+      maintenanceLog:
+          (map['maintenanceLog'] as List<dynamic>?)
+              ?.map((e) => MaintenanceEntry.fromMap(e as Map<String, dynamic>))
               .toList() ??
           [],
     );
@@ -614,14 +725,18 @@ class Equipment {
     int? oarCount,
     String? bladeType,
     double? oarLength,
+    CoxboxType? coxboxType,
     bool? microphoneIncluded,
     String? batteryStatus,
+    String? assignedToId,
+    String? assignedToName,
     bool? gasTankAssigned,
     String? tankNumber,
     String? fuelType,
     String? ergId,
     bool? isDamaged,
     List<DamageReport>? damageReports,
+    List<MaintenanceEntry>? maintenanceLog,
   }) {
     return Equipment(
       id: id ?? this.id,
@@ -649,17 +764,25 @@ class Equipment {
       oarCount: oarCount ?? this.oarCount,
       bladeType: bladeType ?? this.bladeType,
       oarLength: oarLength ?? this.oarLength,
+      coxboxType: coxboxType ?? this.coxboxType,
       microphoneIncluded: microphoneIncluded ?? this.microphoneIncluded,
       batteryStatus: batteryStatus ?? this.batteryStatus,
+      assignedToId: assignedToId ?? this.assignedToId,
+      assignedToName: assignedToName ?? this.assignedToName,
       gasTankAssigned: gasTankAssigned ?? this.gasTankAssigned,
       tankNumber: tankNumber ?? this.tankNumber,
       fuelType: fuelType ?? this.fuelType,
       ergId: ergId ?? this.ergId,
       isDamaged: isDamaged ?? this.isDamaged,
       damageReports: damageReports ?? this.damageReports,
+      maintenanceLog: maintenanceLog ?? this.maintenanceLog,
     );
   }
 }
+
+// ════════════════════════════════════════════════════════════
+// DAMAGE REPORT
+// ════════════════════════════════════════════════════════════
 
 class DamageReport {
   final String id;

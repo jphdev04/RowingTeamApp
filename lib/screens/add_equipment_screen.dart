@@ -7,6 +7,10 @@ import '../services/equipment_service.dart';
 import '../services/team_service.dart';
 import '../utils/boathouse_styles.dart';
 import '../widgets/team_header.dart';
+import '../services/membership_service.dart';
+import '../models/membership.dart';
+import '../models/user.dart';
+import '../services/user_service.dart';
 
 class AddEquipmentScreen extends StatefulWidget {
   final String organizationId;
@@ -56,6 +60,9 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
   // Coxbox-specific
   bool _microphoneIncluded = true;
   String _batteryStatus = 'Good';
+  CoxboxType? _selectedCoxboxType;
+  String? _assignedToId;
+  String? _assignedToName;
 
   // Launch-specific
   bool _gasTankAssigned = false;
@@ -256,6 +263,15 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
             : null,
         batteryStatus: _selectedType == EquipmentType.coxbox
             ? _batteryStatus
+            : null,
+        coxboxType: _selectedType == EquipmentType.coxbox
+            ? _selectedCoxboxType
+            : null,
+        assignedToId: _selectedType == EquipmentType.coxbox
+            ? _assignedToId
+            : null,
+        assignedToName: _selectedType == EquipmentType.coxbox
+            ? _assignedToName
             : null,
         gasTankAssigned: _selectedType == EquipmentType.launch
             ? _gasTankAssigned
@@ -1306,8 +1322,35 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        BoathouseStyles.sectionLabel('Coxbox Details'),
+        BoathouseStyles.sectionLabel('Electronics Type'),
         const SizedBox(height: 8),
+
+        // ── Coxbox vs SpeedCoach toggle ──
+        BoathouseStyles.toggleChipRow(
+          primaryColor: primaryColor,
+          labels: ['Coxbox', 'SpeedCoach'],
+          icons: [Icons.speaker, Icons.speed],
+          selectedIndex: _selectedCoxboxType == CoxboxType.speedcoach ? 1 : 0,
+          onSelected: (i) {
+            setState(() {
+              _selectedCoxboxType = i == 0
+                  ? CoxboxType.coxbox
+                  : CoxboxType.speedcoach;
+              // Clear assignment when switching type
+              _assignedToId = null;
+              _assignedToName = null;
+            });
+          },
+        ),
+        const SizedBox(height: 16),
+
+        BoathouseStyles.sectionLabel(
+          _selectedCoxboxType == CoxboxType.speedcoach
+              ? 'SpeedCoach Details'
+              : 'Coxbox Details',
+        ),
+        const SizedBox(height: 8),
+
         BoathouseStyles.switchCard(
           primaryColor: primaryColor,
           switches: [
@@ -1319,62 +1362,431 @@ class _AddEquipmentScreenState extends State<AddEquipmentScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        InkWell(
-          onTap: () {
-            showModalBottomSheet(
-              context: context,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-              ),
-              builder: (ctx) => Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: ['Good', 'Fair', 'Needs Replacement']
-                      .map(
-                        (s) => ListTile(
-                          title: Text(s),
-                          trailing: _batteryStatus == s
-                              ? Icon(
-                                  Icons.check_circle,
-                                  color: primaryColor,
-                                  size: 20,
-                                )
-                              : null,
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            setState(() => _batteryStatus = s);
-                          },
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-            );
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: Row(
+
+        // Battery status picker (existing — keep as-is)
+        _buildBatteryStatusPicker(),
+
+        const SizedBox(height: 16),
+
+        // ── Assignment Section ──
+        BoathouseStyles.sectionLabel(
+          _selectedCoxboxType == CoxboxType.speedcoach
+              ? 'Assign to Shell (Optional)'
+              : 'Assign to Coxswain (Optional)',
+        ),
+        const SizedBox(height: 8),
+        _buildAssignmentPicker(),
+      ],
+    );
+  }
+
+  Widget _buildBatteryStatusPicker() {
+    return InkWell(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          builder: (ctx) => Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.battery_full, size: 18, color: Colors.grey[400]),
-                const SizedBox(width: 10),
                 Text(
-                  'Battery: $_batteryStatus',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[800]),
+                  'Battery Status',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                  ),
                 ),
-                const Spacer(),
-                Icon(Icons.chevron_right, size: 20, color: Colors.grey[400]),
+                const SizedBox(height: 12),
+                ...['Good', 'Fair', 'Needs Replacement'].map(
+                  (s) => ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    tileColor: _batteryStatus == s
+                        ? primaryColor.withOpacity(0.08)
+                        : null,
+                    title: Text(s),
+                    trailing: _batteryStatus == s
+                        ? Icon(
+                            Icons.check_circle,
+                            color: primaryColor,
+                            size: 20,
+                          )
+                        : null,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      setState(() => _batteryStatus = s);
+                    },
+                  ),
+                ),
               ],
             ),
           ),
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
         ),
-      ],
+        child: Row(
+          children: [
+            Icon(Icons.battery_full, size: 18, color: Colors.grey[400]),
+            const SizedBox(width: 10),
+            Text(
+              'Battery: $_batteryStatus',
+              style: TextStyle(fontSize: 14, color: Colors.grey[800]),
+            ),
+            const Spacer(),
+            Icon(Icons.chevron_right, size: 20, color: Colors.grey[400]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAssignmentPicker() {
+    return InkWell(
+      onTap: () => _showAssignmentSheet(),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _assignedToId != null
+                ? primaryColor.withOpacity(0.5)
+                : Colors.grey.shade300,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              _selectedCoxboxType == CoxboxType.speedcoach
+                  ? Icons.rowing
+                  : Icons.person,
+              size: 18,
+              color: _assignedToId != null ? primaryColor : Colors.grey[400],
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _assignedToName ?? 'Tap to assign...',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: _assignedToName != null
+                      ? Colors.grey[800]
+                      : Colors.grey[400],
+                ),
+              ),
+            ),
+            if (_assignedToId != null)
+              GestureDetector(
+                onTap: () => setState(() {
+                  _assignedToId = null;
+                  _assignedToName = null;
+                }),
+                child: Icon(Icons.close, size: 18, color: Colors.grey[400]),
+              )
+            else
+              Icon(Icons.chevron_right, size: 20, color: Colors.grey[400]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAssignmentSheet() {
+    if (_selectedCoxboxType == CoxboxType.speedcoach) {
+      _showShellAssignmentSheet();
+    } else {
+      _showCoxswainAssignmentSheet();
+    }
+  }
+
+  void _showCoxswainAssignmentSheet() {
+    final membershipService = MembershipService();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          maxChildSize: 0.8,
+          expand: false,
+          builder: (ctx, scrollController) {
+            return StreamBuilder<List<Membership>>(
+              stream: membershipService.getOrganizationMemberships(
+                widget.organizationId,
+              ),
+              builder: (ctx, snapshot) {
+                final members = (snapshot.data ?? [])
+                    .where((m) => m.role == MembershipRole.coxswain)
+                    .toList();
+
+                return Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Assign to Coxswain',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                          if (_assignedToId != null)
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                setState(() {
+                                  _assignedToId = null;
+                                  _assignedToName = null;
+                                });
+                              },
+                              child: const Text(
+                                'Clear',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (snapshot.connectionState == ConnectionState.waiting)
+                        const Center(child: CircularProgressIndicator())
+                      else if (members.isEmpty)
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Text(
+                              'No coxswains found',
+                              style: TextStyle(color: Colors.grey[500]),
+                            ),
+                          ),
+                        )
+                      else
+                        Expanded(
+                          child: ListView.builder(
+                            controller: scrollController,
+                            itemCount: members.length,
+                            itemBuilder: (ctx, i) {
+                              final m = members[i];
+                              final isSelected = m.userId == _assignedToId;
+                              return FutureBuilder<AppUser?>(
+                                future: UserService().getUser(m.userId),
+                                builder: (ctx, userSnap) {
+                                  final userName =
+                                      userSnap.data?.name ?? 'Loading...';
+                                  if (userSnap.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return ListTile(
+                                      leading: CircleAvatar(
+                                        backgroundColor: Colors.grey.shade200,
+                                        radius: 18,
+                                      ),
+                                      title: Text(
+                                        'Loading...',
+                                        style: TextStyle(
+                                          color: Colors.grey[400],
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  return ListTile(
+                                    leading: CircleAvatar(
+                                      backgroundColor: isSelected
+                                          ? primaryColor
+                                          : Colors.grey.shade200,
+                                      radius: 18,
+                                      child: Text(
+                                        userName.isNotEmpty
+                                            ? userName[0].toUpperCase()
+                                            : '?',
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? Colors.white
+                                              : Colors.grey[600],
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    title: Text(userName),
+                                    subtitle: Text(
+                                      m.role.name,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[500],
+                                      ),
+                                    ),
+                                    trailing: isSelected
+                                        ? Icon(
+                                            Icons.check_circle,
+                                            color: primaryColor,
+                                          )
+                                        : null,
+                                    onTap: () {
+                                      Navigator.pop(ctx);
+                                      setState(() {
+                                        _assignedToId = m.userId;
+                                        _assignedToName = userName;
+                                      });
+                                    },
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Bottom sheet to pick a shell to assign a speedcoach to.
+  void _showShellAssignmentSheet() {
+    final equipmentService = EquipmentService();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          maxChildSize: 0.8,
+          expand: false,
+          builder: (ctx, scrollController) {
+            return StreamBuilder<List<Equipment>>(
+              stream: equipmentService.getEquipmentByTeam(
+                widget.organizationId,
+              ),
+              builder: (ctx, snapshot) {
+                final shells =
+                    (snapshot.data ?? [])
+                        .where((e) => e.type == EquipmentType.shell)
+                        .toList()
+                      ..sort((a, b) => a.displayName.compareTo(b.displayName));
+
+                return Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Assign to Shell',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                          if (_assignedToId != null)
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                setState(() {
+                                  _assignedToId = null;
+                                  _assignedToName = null;
+                                });
+                              },
+                              child: const Text(
+                                'Clear',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (snapshot.connectionState == ConnectionState.waiting)
+                        const Center(child: CircularProgressIndicator())
+                      else if (shells.isEmpty)
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Text(
+                              'No shells found',
+                              style: TextStyle(color: Colors.grey[500]),
+                            ),
+                          ),
+                        )
+                      else
+                        Expanded(
+                          child: ListView.builder(
+                            controller: scrollController,
+                            itemCount: shells.length,
+                            itemBuilder: (ctx, i) {
+                              final shell = shells[i];
+                              final isSelected = shell.id == _assignedToId;
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: isSelected
+                                      ? primaryColor
+                                      : Colors.grey.shade200,
+                                  radius: 18,
+                                  child: Icon(
+                                    Icons.rowing,
+                                    size: 18,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.grey[600],
+                                  ),
+                                ),
+                                title: Text(shell.displayName),
+                                trailing: isSelected
+                                    ? Icon(
+                                        Icons.check_circle,
+                                        color: primaryColor,
+                                      )
+                                    : null,
+                                onTap: () {
+                                  Navigator.pop(ctx);
+                                  setState(() {
+                                    _assignedToId = shell.id;
+                                    _assignedToName = shell.displayName;
+                                  });
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 

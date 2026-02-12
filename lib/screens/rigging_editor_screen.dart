@@ -324,6 +324,18 @@ class _RiggingEditorScreenState extends State<RiggingEditorScreen> {
         _initializePositions();
         _hasChanges = false;
       });
+
+      if (mounted) {
+        final isScull = _isScull;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isScull ? 'Switched to sculling mode' : 'Switched to sweep mode',
+            ),
+            backgroundColor: Colors.green[600],
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -726,29 +738,51 @@ class _RiggingEditorScreenState extends State<RiggingEditorScreen> {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          Icon(Icons.info_outline, size: 36, color: Colors.grey[400]),
+          Icon(Icons.info_outline, size: 32, color: Colors.grey[400]),
           const SizedBox(height: 12),
           Text(
-            'Sculling Configuration',
+            'Sculling Mode',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: Colors.grey[700],
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
-            'Sculling boats use two oars per rower, so port/starboard rigging does not apply. '
             'Each rower rows on both sides.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, color: Colors.grey[500]),
           ),
           if (_isDualRigged) ...[
             const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle, size: 16, color: Colors.green[600]),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Sculling mode active',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.green[700],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(
               'Switch to sweep mode above to configure rigging.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: primaryColor),
+              style: TextStyle(fontSize: 12, color: Colors.grey[500]),
             ),
           ],
         ],

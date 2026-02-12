@@ -8,6 +8,8 @@ import '../services/organization_service.dart';
 import '../widgets/team_header.dart';
 import 'add_equipment_screen.dart';
 import 'equipment_list_screen.dart';
+import 'maintenance_log_screen.dart';
+import 'equipment_detail_screen.dart';
 
 class EquipmentScreen extends StatelessWidget {
   final String organizationId;
@@ -168,7 +170,7 @@ class EquipmentScreen extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: _EquipmentCategoryCard(
-                                  title: 'Coxboxes',
+                                  title: 'Electronics',
                                   icon: Icons.speaker,
                                   count: allEquipment
                                       .where(
@@ -293,7 +295,176 @@ class EquipmentScreen extends StatelessWidget {
                               const Expanded(child: SizedBox()),
                             ],
                           ),
-
+                          if (allEquipment
+                              .where((e) => e.needsAttention)
+                              .where(
+                                (e) =>
+                                    team == null ||
+                                    e.availableToAllTeams ||
+                                    e.assignedTeamIds.contains(team!.id),
+                              )
+                              .isNotEmpty) ...[
+                            const SizedBox(height: 24),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: Colors.orange,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'Needs Attention',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            ...allEquipment
+                                .where((e) => e.needsAttention)
+                                .where(
+                                  (e) =>
+                                      team == null ||
+                                      e.availableToAllTeams ||
+                                      e.assignedTeamIds.contains(team!.id),
+                                )
+                                .map(
+                                  (eq) => Card(
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color:
+                                            eq.status == EquipmentStatus.damaged
+                                            ? Colors.red.shade200
+                                            : Colors.orange.shade200,
+                                      ),
+                                    ),
+                                    child: InkWell(
+                                      onTap: () {
+                                        // Navigate to maintenance log if coach, otherwise detail
+                                        if (isCoach) {
+                                          final user =
+                                              null; // You'll need to pass user through
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  EquipmentDetailScreen(
+                                                    equipmentId: eq.id,
+                                                    organizationId:
+                                                        organizationId,
+                                                    team: team,
+                                                  ),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(14),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color:
+                                                    (eq.status ==
+                                                                EquipmentStatus
+                                                                    .damaged
+                                                            ? Colors.red
+                                                            : Colors.orange)
+                                                        .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Icon(
+                                                eq.status ==
+                                                        EquipmentStatus.damaged
+                                                    ? Icons
+                                                          .warning_amber_rounded
+                                                    : Icons.build,
+                                                color:
+                                                    eq.status ==
+                                                        EquipmentStatus.damaged
+                                                    ? Colors.red
+                                                    : Colors.orange,
+                                                size: 20,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    eq.displayName,
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    eq.status ==
+                                                            EquipmentStatus
+                                                                .damaged
+                                                        ? '${eq.unresolvedDamageReports.length} open ${eq.unresolvedDamageReports.length == 1 ? 'report' : 'reports'}'
+                                                        : 'Under maintenance',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[500],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color:
+                                                    (eq.status ==
+                                                                EquipmentStatus
+                                                                    .damaged
+                                                            ? Colors.red
+                                                            : Colors.orange)
+                                                        .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                eq.status ==
+                                                        EquipmentStatus.damaged
+                                                    ? 'Damaged'
+                                                    : 'Maintenance',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                  color:
+                                                      eq.status ==
+                                                          EquipmentStatus
+                                                              .damaged
+                                                      ? Colors.red
+                                                      : Colors.orange,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ],
                           const SizedBox(height: 32),
 
                           // Quick Stats

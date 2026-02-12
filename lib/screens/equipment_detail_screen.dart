@@ -11,6 +11,7 @@ import '../services/organization_service.dart';
 import '../widgets/team_header.dart';
 import 'edit_equipment_screen.dart';
 import 'rigging_editor_screen.dart';
+import 'maintenance_log_screen.dart';
 
 class EquipmentDetailScreen extends StatelessWidget {
   final String equipmentId;
@@ -92,6 +93,19 @@ class _EquipmentDetailContent extends StatelessWidget {
     this.currentMembership,
   });
 
+  Color get _primaryColor =>
+      team?.primaryColorObj ??
+      organization?.primaryColorObj ??
+      const Color(0xFF1976D2);
+
+  Color get _onPrimary =>
+      _primaryColor.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+
+  bool get _canManageMaintenance =>
+      currentMembership?.role == MembershipRole.coach ||
+      currentMembership?.role == MembershipRole.admin ||
+      currentMembership?.role == MembershipRole.boatman;
+
   Color _getStatusColor() {
     switch (equipment.status) {
       case EquipmentStatus.available:
@@ -114,7 +128,7 @@ class _EquipmentDetailContent extends StatelessWidget {
       case EquipmentStatus.damaged:
         return 'Damaged';
       case EquipmentStatus.maintenance:
-        return 'Maintenance';
+        return 'Under Maintenance';
     }
   }
 
@@ -124,73 +138,42 @@ class _EquipmentDetailContent extends StatelessWidget {
       backgroundColor: Colors.grey[50],
       body: Column(
         children: [
-          // Header
+          // ── Flat TeamHeader ──
+          TeamHeader(
+            team: team,
+            organization: team == null ? organization : null,
+            title: equipment.displayName,
+            subtitle: _getStatusText(),
+            leading: IconButton(
+              icon: Icon(Icons.arrow_back, color: _onPrimary),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            actions: [
+              IconButton(
+                icon: Icon(Icons.edit, color: _onPrimary),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => EditEquipmentScreen(
+                        equipment: equipment,
+                        organizationId: equipment.organizationId,
+                        organization: organization,
+                        team: team,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+
+          // ── Status badge below header ──
           Container(
             width: double.infinity,
-            padding: EdgeInsets.fromLTRB(
-              24,
-              MediaQuery.of(context).padding.top + 16,
-              24,
-              24,
-            ),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  team?.primaryColorObj ??
-                      organization?.primaryColorObj ??
-                      const Color(0xFF1976D2),
-                  team?.secondaryColorObj ??
-                      organization?.secondaryColorObj ??
-                      (team?.primaryColorObj ??
-                              organization?.primaryColorObj ??
-                              const Color(0xFF1976D2))
-                          .withOpacity(0.7),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            color: Colors.grey[50],
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.white),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => EditEquipmentScreen(
-                              equipment: equipment,
-                              organizationId: equipment.organizationId,
-                              organization: organization,
-                              team: team,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  equipment.displayName,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -205,21 +188,34 @@ class _EquipmentDetailContent extends StatelessWidget {
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
+                      fontSize: 12,
                     ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _getEquipmentTypeLabel(),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[500],
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
           ),
 
-          // Content
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Basic Info Card
+                  // Needs attention banner
+                  if (equipment.needsAttention)
+                    _buildNeedsAttentionBanner(context),
+
+                  // Basic info
                   _InfoCard(
                     title: 'Basic Information',
                     children: [
@@ -241,17 +237,22 @@ class _EquipmentDetailContent extends StatelessWidget {
                         ),
                     ],
                   ),
-
                   const SizedBox(height: 16),
 
-                  // Type-Specific Info
+                  // Type-specific info
                   if (_hasTypeSpecificInfo())
                     _InfoCard(
                       title: _getTypeSpecificTitle(),
                       children: _buildTypeSpecificInfo(),
                     ),
 
-                  // ── Rigging Card (shells only) ──
+                  // Coxbox assignment
+                  if (equipment.type == EquipmentType.coxbox) ...[
+                    const SizedBox(height: 16),
+                    _buildCoxboxAssignmentCard(),
+                  ],
+
+                  // ── Rigging card with full visual diagram ──
                   if (equipment.type == EquipmentType.shell &&
                       equipment.isSweepConfig) ...[
                     const SizedBox(height: 16),
@@ -260,7 +261,7 @@ class _EquipmentDetailContent extends StatelessWidget {
 
                   const SizedBox(height: 16),
 
-                  // Purchase Info
+                  // Purchase info
                   if (equipment.purchaseDate != null ||
                       equipment.purchasePrice != null)
                     _InfoCard(
@@ -281,10 +282,9 @@ class _EquipmentDetailContent extends StatelessWidget {
                           ),
                       ],
                     ),
-
                   const SizedBox(height: 16),
 
-                  // Team Assignment
+                  // Team assignment
                   _InfoCard(
                     title: 'Team Assignment',
                     children: [
@@ -305,7 +305,6 @@ class _EquipmentDetailContent extends StatelessWidget {
                         ),
                     ],
                   ),
-
                   const SizedBox(height: 16),
 
                   // Notes
@@ -319,32 +318,19 @@ class _EquipmentDetailContent extends StatelessWidget {
                         ),
                       ],
                     ),
-
                   const SizedBox(height: 16),
 
-                  // Damage Reports
-                  if (equipment.isDamaged && equipment.damageReports.isNotEmpty)
+                  // Damage reports
+                  if (equipment.isDamaged &&
+                      equipment.unresolvedDamageReports.isNotEmpty)
                     _DamageReportsCard(
-                      damageReports: equipment.damageReports
-                          .where((r) => !r.isResolved)
-                          .toList(),
+                      damageReports: equipment.unresolvedDamageReports,
                     ),
-
                   const SizedBox(height: 16),
 
-                  // Maintenance History
-                  if (equipment.lastMaintenanceDate != null)
-                    _InfoCard(
-                      title: 'Maintenance',
-                      children: [
-                        _InfoRow(
-                          label: 'Last Maintenance',
-                          value: DateFormat(
-                            'MM/dd/yyyy',
-                          ).format(equipment.lastMaintenanceDate!),
-                        ),
-                      ],
-                    ),
+                  // Maintenance log
+                  _buildMaintenanceLogCard(context),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
@@ -354,14 +340,104 @@ class _EquipmentDetailContent extends StatelessWidget {
     );
   }
 
-  // ── Rigging info card with Edit button ──
+  String _getEquipmentTypeLabel() {
+    switch (equipment.type) {
+      case EquipmentType.shell:
+        return equipment.shellType != null
+            ? _shellTypeDisplay(equipment.shellType!)
+            : 'Shell';
+      case EquipmentType.oar:
+        return equipment.oarType == OarType.sweep
+            ? 'Sweep Oars'
+            : 'Sculling Oars';
+      case EquipmentType.coxbox:
+        return equipment.coxboxType == CoxboxType.speedcoach
+            ? 'SpeedCoach'
+            : 'Coxbox';
+      case EquipmentType.launch:
+        return 'Launch';
+      case EquipmentType.erg:
+        return 'Erg';
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // NEEDS ATTENTION BANNER
+  // ════════════════════════════════════════════════════════════
+
+  Widget _buildNeedsAttentionBanner(BuildContext context) {
+    final statusColor = _getStatusColor();
+    final unresolvedCount = equipment.unresolvedDamageReports.length;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: statusColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            equipment.status == EquipmentStatus.damaged
+                ? Icons.warning_amber_rounded
+                : Icons.build,
+            color: statusColor,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  equipment.status == EquipmentStatus.damaged
+                      ? '$unresolvedCount open damage ${unresolvedCount == 1 ? 'report' : 'reports'}'
+                      : 'Under maintenance',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: statusColor,
+                  ),
+                ),
+                if (_canManageMaintenance)
+                  Text(
+                    'Tap "Maintenance Log" below to manage',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  ),
+              ],
+            ),
+          ),
+          if (_canManageMaintenance && user != null)
+            TextButton(
+              onPressed: () => _navigateToMaintenanceLog(context),
+              child: Text(
+                'Manage',
+                style: TextStyle(
+                  color: statusColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // RIGGING CARD — full visual diagram
+  // ════════════════════════════════════════════════════════════
 
   Widget _buildRiggingCard(BuildContext context) {
     final rig = equipment.effectiveRiggingSetup;
-    final primaryColor =
-        team?.primaryColorObj ??
-        organization?.primaryColorObj ??
-        const Color(0xFF1976D2);
+    final seatCount = equipment.shellType != null
+        ? _seatCountForShellType(
+            equipment.effectiveShellType ?? equipment.shellType!,
+          )
+        : 0;
+    final positions =
+        rig?.positions ??
+        RiggingPresets.standardPortStroke(seatCount).positions;
 
     return Card(
       elevation: 0,
@@ -374,6 +450,7 @@ class _EquipmentDetailContent extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header row
             Row(
               children: [
                 const Text(
@@ -383,33 +460,41 @@ class _EquipmentDetailContent extends StatelessWidget {
                 const Spacer(),
                 if (user != null &&
                     currentMembership != null &&
-                    organization != null)
+                    organization != null &&
+                    _canManageMaintenance)
                   TextButton.icon(
                     onPressed: () => _navigateToRiggingEditor(context),
-                    icon: Icon(Icons.tune, size: 18, color: primaryColor),
+                    icon: Icon(Icons.tune, size: 18, color: _primaryColor),
                     label: Text(
                       'Edit',
                       style: TextStyle(
-                        color: primaryColor,
+                        color: _primaryColor,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: 12),
             if (rig != null) ...[
-              _InfoRow(label: 'Configuration', value: rig.name),
-              _InfoRow(label: 'Pattern', value: rig.description),
-              const SizedBox(height: 8),
-              // Mini visual preview
-              _buildMiniRiggingPreview(rig),
-            ] else
               Text(
-                'No rigging configured — using default port stroke',
-                style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                rig.name,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
               ),
+              Text(
+                rig.description,
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+            ],
+            const SizedBox(height: 16),
 
+            // ── Full visual per-seat diagram ──
+            if (seatCount > 0) _buildFullRiggingDiagram(positions, seatCount),
+
+            // Dual-rigged badge
             if (equipment.riggingType == RiggingType.dualRigged) ...[
               const Divider(height: 20),
               Row(
@@ -448,54 +533,359 @@ class _EquipmentDetailContent extends StatelessWidget {
     );
   }
 
-  Widget _buildMiniRiggingPreview(RiggingSetup rig) {
-    return Row(
-      children: rig.positions.reversed.map((p) {
-        final seatNum = p.seat;
-        final totalSeats = rig.positions.length;
-        final label = seatNum == totalSeats
-            ? 'S'
-            : seatNum == 1
-            ? 'B'
-            : '$seatNum';
-        final isPort = p.side == RiggerSide.port;
-
-        return Padding(
-          padding: const EdgeInsets.only(right: 4),
-          child: Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: isPort
-                  ? Colors.red.withOpacity(0.15)
-                  : Colors.green.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: isPort
-                    ? Colors.red.withOpacity(0.3)
-                    : Colors.green.withOpacity(0.3),
-              ),
-            ),
-            child: Center(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: isPort ? Colors.red[700] : Colors.green[700],
+  Widget _buildFullRiggingDiagram(
+    List<RiggerPosition> positions,
+    int seatCount,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Column headers
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 50,
+                child: Text(
+                  'PORT',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red[400],
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
-            ),
+              const Expanded(child: SizedBox()),
+              SizedBox(
+                width: 50,
+                child: Text(
+                  'STBD',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green[400],
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
           ),
-        );
-      }).toList(),
+        ),
+        const SizedBox(height: 8),
+
+        // Seats from stroke (top) to bow (bottom)
+        ...List.generate(seatCount, (i) {
+          final seatNum = seatCount - i;
+          final position = positions.firstWhere(
+            (p) => p.seat == seatNum,
+            orElse: () => RiggerPosition(seat: seatNum, side: RiggerSide.port),
+          );
+          final seatLabel = seatNum == seatCount
+              ? 'Stroke'
+              : seatNum == 1
+              ? 'Bow'
+              : 'Seat $seatNum';
+          final isPort = position.side == RiggerSide.port;
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: [
+                // Port indicator
+                _buildSideIndicator(
+                  isActive: isPort,
+                  color: Colors.red,
+                  label: 'P',
+                ),
+                const SizedBox(width: 8),
+
+                // Port rigger arm
+                if (isPort)
+                  Container(
+                    width: 24,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: Colors.red[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  )
+                else
+                  const SizedBox(width: 24),
+
+                const SizedBox(width: 4),
+
+                // Seat pill
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isPort
+                          ? Colors.red.withOpacity(0.06)
+                          : Colors.green.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isPort
+                            ? Colors.red.withOpacity(0.15)
+                            : Colors.green.withOpacity(0.15),
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        seatLabel,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 4),
+
+                // Starboard rigger arm
+                if (!isPort)
+                  Container(
+                    width: 24,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: Colors.green[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  )
+                else
+                  const SizedBox(width: 24),
+
+                const SizedBox(width: 8),
+
+                // Starboard indicator
+                _buildSideIndicator(
+                  isActive: !isPort,
+                  color: Colors.green,
+                  label: 'S',
+                ),
+              ],
+            ),
+          );
+        }),
+
+        // Balance summary
+        const SizedBox(height: 12),
+        _buildBalanceSummary(positions),
+      ],
+    );
+  }
+
+  Widget _buildSideIndicator({
+    required bool isActive,
+    required MaterialColor color,
+    required String label,
+  }) {
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        color: isActive ? color.withOpacity(0.15) : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isActive ? color.withOpacity(0.4) : Colors.grey.shade200,
+          width: isActive ? 2 : 1,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: isActive ? color[700] : Colors.grey[400],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBalanceSummary(List<RiggerPosition> positions) {
+    final portCount = positions.where((p) => p.side == RiggerSide.port).length;
+    final stbdCount = positions
+        .where((p) => p.side == RiggerSide.starboard)
+        .length;
+    final isBalanced = portCount == stbdCount;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          isBalanced ? Icons.check_circle : Icons.warning_amber_rounded,
+          color: isBalanced ? Colors.green : Colors.orange,
+          size: 16,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          isBalanced
+              ? 'Balanced ($portCount port / $stbdCount stbd)'
+              : 'Unbalanced ($portCount port / $stbdCount stbd)',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: isBalanced ? Colors.green[700] : Colors.orange[700],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // COXBOX ASSIGNMENT CARD
+  // ════════════════════════════════════════════════════════════
+
+  Widget _buildCoxboxAssignmentCard() {
+    final isCoxbox =
+        equipment.coxboxType == CoxboxType.coxbox ||
+        equipment.coxboxType == null;
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text(
+                  'Assignment',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                if (equipment.coxboxType != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      equipment.coxboxType == CoxboxType.speedcoach
+                          ? 'SpeedCoach'
+                          : 'Coxbox',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _primaryColor,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _InfoRow(
+              label: isCoxbox ? 'Assigned Coxswain' : 'Assigned Shell',
+              value: equipment.assignedToName ?? 'Unassigned',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // MAINTENANCE LOG CARD
+  // ════════════════════════════════════════════════════════════
+
+  Widget _buildMaintenanceLogCard(BuildContext context) {
+    final logCount = equipment.maintenanceLog.length;
+    final lastEntry = equipment.maintenanceLog.isNotEmpty
+        ? equipment.maintenanceLog.last
+        : null;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: InkWell(
+        onTap: () => _navigateToMaintenanceLog(context),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.build, color: Colors.orange, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Maintenance Log',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      logCount == 0
+                          ? 'No maintenance history'
+                          : '$logCount ${logCount == 1 ? 'entry' : 'entries'}${lastEntry != null ? ' · Last: ${DateFormat('MMM d').format(lastEntry.createdAt)}' : ''}',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: Colors.grey[400]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // NAVIGATION
+  // ════════════════════════════════════════════════════════════
+
+  void _navigateToMaintenanceLog(BuildContext context) {
+    if (user == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => MaintenanceLogScreen(
+          equipmentId: equipment.id,
+          organizationId: equipment.organizationId,
+          userId: user!.id,
+          userName: user!.name,
+          organization: organization,
+          team: team,
+        ),
+      ),
     );
   }
 
   void _navigateToRiggingEditor(BuildContext context) {
-    if (user == null || currentMembership == null || organization == null) {
+    if (user == null || currentMembership == null || organization == null)
       return;
-    }
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => RiggingEditorScreen(
@@ -508,6 +898,10 @@ class _EquipmentDetailContent extends StatelessWidget {
       ),
     );
   }
+
+  // ════════════════════════════════════════════════════════════
+  // TYPE-SPECIFIC INFO
+  // ════════════════════════════════════════════════════════════
 
   bool _hasTypeSpecificInfo() {
     switch (equipment.type) {
@@ -531,7 +925,9 @@ class _EquipmentDetailContent extends StatelessWidget {
       case EquipmentType.oar:
         return 'Oar Details';
       case EquipmentType.coxbox:
-        return 'Coxbox Details';
+        return equipment.coxboxType == CoxboxType.speedcoach
+            ? 'SpeedCoach Details'
+            : 'Coxbox Details';
       case EquipmentType.launch:
         return 'Launch Details';
       case EquipmentType.erg:
@@ -570,6 +966,13 @@ class _EquipmentDetailContent extends StatelessWidget {
         ];
       case EquipmentType.coxbox:
         return [
+          if (equipment.coxboxType != null)
+            _InfoRow(
+              label: 'Type',
+              value: equipment.coxboxType == CoxboxType.speedcoach
+                  ? 'SpeedCoach'
+                  : 'Coxbox',
+            ),
           _InfoRow(
             label: 'Microphone',
             value: equipment.microphoneIncluded == true
@@ -597,6 +1000,27 @@ class _EquipmentDetailContent extends StatelessWidget {
           if (equipment.ergId != null)
             _InfoRow(label: 'Erg ID', value: equipment.ergId!),
         ];
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // HELPERS
+  // ════════════════════════════════════════════════════════════
+
+  int _seatCountForShellType(ShellType st) {
+    switch (st) {
+      case ShellType.eight:
+        return 8;
+      case ShellType.coxedFour:
+      case ShellType.four:
+      case ShellType.quad:
+      case ShellType.coxedQuad:
+        return 4;
+      case ShellType.pair:
+      case ShellType.double:
+        return 2;
+      case ShellType.single:
+        return 1;
     }
   }
 
@@ -633,10 +1057,13 @@ class _EquipmentDetailContent extends StatelessWidget {
   }
 }
 
+// ════════════════════════════════════════════════════════════
+// REUSABLE DETAIL WIDGETS
+// ════════════════════════════════════════════════════════════
+
 class _InfoCard extends StatelessWidget {
   final String title;
   final List<Widget> children;
-
   const _InfoCard({required this.title, required this.children});
 
   @override
@@ -668,7 +1095,6 @@ class _InfoCard extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
-
   const _InfoRow({required this.label, required this.value});
 
   @override
@@ -699,7 +1125,6 @@ class _InfoRow extends StatelessWidget {
 class _TeamsList extends StatelessWidget {
   final List<String> teamIds;
   final TeamService teamService;
-
   const _TeamsList({required this.teamIds, required this.teamService});
 
   @override
@@ -716,10 +1141,8 @@ class _TeamsList extends StatelessWidget {
                 child: Text('Loading...'),
               );
             }
-
             final team = snapshot.data;
             if (team == null) return const SizedBox();
-
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
@@ -746,13 +1169,17 @@ class _TeamsList extends StatelessWidget {
 
 class _DamageReportsCard extends StatelessWidget {
   final List<DamageReport> damageReports;
-
   const _DamageReportsCard({required this.damageReports});
 
   @override
   Widget build(BuildContext context) {
     return Card(
       color: Colors.red[50],
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.red.shade200),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -760,42 +1187,61 @@ class _DamageReportsCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.warning, color: Colors.red),
+                const Icon(Icons.warning_amber_rounded, color: Colors.red),
                 const SizedBox(width: 8),
                 const Text(
-                  'Damage Reports',
+                  'Open Damage Reports',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Colors.red,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            ...damageReports.map((report) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Reported by ${report.reportedByName}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+            const SizedBox(height: 12),
+            ...damageReports.map(
+              (report) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'by ${report.reportedByName}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            DateFormat('MMM d, yyyy').format(report.reportedAt),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    Text(
-                      DateFormat('MM/dd/yyyy').format(report.reportedAt),
-                      style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(report.description),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        report.description,
+                        style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                      ),
+                    ],
+                  ),
                 ),
-              );
-            }).toList(),
+              ),
+            ),
           ],
         ),
       ),
