@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
 import '../models/user.dart';
 import '../models/membership.dart';
 import '../models/organization.dart';
@@ -8,13 +8,9 @@ import '../models/workout_template.dart';
 import '../models/workout_session.dart';
 import '../services/workout_service.dart';
 import '../services/calendar_service.dart';
+import '../utils/boathouse_styles.dart';
 import '../widgets/team_header.dart';
 
-/// Edit screen for erg workouts. Mirrors CreateErgWorkoutScreen but
-/// pre-fills all fields from an existing template + session.
-///
-/// When other workout types are built (lift, water, circuit, race),
-/// create corresponding EditLiftWorkoutScreen, etc. following this pattern.
 class EditErgWorkoutScreen extends StatefulWidget {
   final AppUser user;
   final Membership currentMembership;
@@ -38,36 +34,30 @@ class EditErgWorkoutScreen extends StatefulWidget {
 }
 
 class _EditErgWorkoutScreenState extends State<EditErgWorkoutScreen> {
-  final WorkoutService _workoutService = WorkoutService();
-  final CalendarService _calendarService = CalendarService();
+  final _formKey = GlobalKey<FormState>();
+  final _workoutService = WorkoutService();
+  final _calendarService = CalendarService();
 
-  // ── Form state (mirrors CreateErgWorkoutScreen) ──
   late ErgType _ergType;
   late ErgFormat _ergFormat;
-  late bool _isBenchmark;
-  late bool _hideUntilStart;
-  late bool _athletesCanSeeResults;
+  late bool _isBenchmark, _hideUntilStart, _athletesCanSeeResults;
   bool _isSaving = false;
 
-  // Controllers
-  late TextEditingController _nameController;
-  late TextEditingController _descriptionController;
+  late TextEditingController _nameController, _descriptionController;
+  late TextEditingController _singleDistanceController,
+      _singleTimeMinController,
+      _singleTimeSecController,
+      _singleRateCapController;
+  late TextEditingController _intervalCountController,
+      _intervalDistanceController,
+      _intervalTimeMinController,
+      _intervalTimeSecController,
+      _restMinController,
+      _restSecController;
 
-  // Single piece
-  late TextEditingController _singleDistanceController;
-  late TextEditingController _singleTimeMinController;
-  late TextEditingController _singleTimeSecController;
-
-  // Standard intervals
-  late TextEditingController _intervalCountController;
-  late TextEditingController _intervalDistanceController;
-  late TextEditingController _intervalTimeMinController;
-  late TextEditingController _intervalTimeSecController;
-  late TextEditingController _restMinController;
-  late TextEditingController _restSecController;
-
-  // Variable intervals
-  List<_VariableIntervalEntry> _variableIntervals = [];
+  final FocusNode _intervalCountFocusNode = FocusNode();
+  List<TextEditingController> _intervalRateCapControllers = [];
+  List<_VIEntry> _variableIntervals = [];
 
   Color get primaryColor =>
       widget.team?.primaryColorObj ??
@@ -80,13 +70,14 @@ class _EditErgWorkoutScreenState extends State<EditErgWorkoutScreen> {
   @override
   void initState() {
     super.initState();
-    _initFromExisting();
+    _init();
+
+    // Refinement: Only sync rate cap controllers when the user finishes editing the count
   }
 
-  void _initFromExisting() {
+  void _init() {
     final t = widget.existingTemplate;
     final s = widget.existingSession;
-
     _ergType = t.ergType ?? ErgType.single;
     _ergFormat = t.ergFormat ?? ErgFormat.distance;
     _isBenchmark = t.isBenchmark;
@@ -95,11 +86,13 @@ class _EditErgWorkoutScreenState extends State<EditErgWorkoutScreen> {
 
     _nameController = TextEditingController(text: t.name);
     _descriptionController = TextEditingController(text: t.description ?? '');
-
-    // Single piece
     _singleDistanceController = TextEditingController(
       text: t.targetDistance?.toString() ?? '',
     );
+    _singleRateCapController = TextEditingController(
+      text: t.strokeRateCap?.toString() ?? '',
+    );
+
     if (t.targetTime != null) {
       _singleTimeMinController = TextEditingController(
         text: (t.targetTime! ~/ 60).toString(),
@@ -112,13 +105,13 @@ class _EditErgWorkoutScreenState extends State<EditErgWorkoutScreen> {
       _singleTimeSecController = TextEditingController();
     }
 
-    // Standard intervals
     _intervalCountController = TextEditingController(
       text: t.intervalCount?.toString() ?? '',
     );
     _intervalDistanceController = TextEditingController(
       text: t.intervalDistance?.toString() ?? '',
     );
+
     if (t.intervalTime != null) {
       _intervalTimeMinController = TextEditingController(
         text: (t.intervalTime! ~/ 60).toString(),
@@ -130,6 +123,7 @@ class _EditErgWorkoutScreenState extends State<EditErgWorkoutScreen> {
       _intervalTimeMinController = TextEditingController();
       _intervalTimeSecController = TextEditingController();
     }
+
     if (t.restSeconds != null) {
       _restMinController = TextEditingController(
         text: (t.restSeconds! ~/ 60).toString(),
@@ -142,41 +136,66 @@ class _EditErgWorkoutScreenState extends State<EditErgWorkoutScreen> {
       _restSecController = TextEditingController();
     }
 
-    // Variable intervals
+    _intervalRateCapControllers = (t.intervalStrokeRateCaps ?? [])
+        .map((c) => TextEditingController(text: c?.toString() ?? ''))
+        .toList();
+
+    if (_intervalRateCapControllers.isEmpty) _syncRateCaps();
+
     if (t.variableIntervals != null) {
       _variableIntervals = t.variableIntervals!.map((vi) {
-        final entry = _VariableIntervalEntry();
+        final e = _VIEntry();
         if (vi.distance != null) {
-          entry.valueController.text = vi.distance.toString();
+          e.vMin.text = vi.distance.toString();
         } else if (vi.time != null) {
-          entry.valueController.text = vi.time.toString();
+          e.vMin.text = (vi.time! ~/ 60).toString();
+          e.vSec.text = (vi.time! % 60).toString().padLeft(2, '0');
         }
         if (vi.restSeconds > 0) {
-          entry.restMinController.text = (vi.restSeconds ~/ 60).toString();
-          entry.restSecController.text = (vi.restSeconds % 60)
-              .toString()
-              .padLeft(2, '0');
+          e.rMin.text = (vi.restSeconds ~/ 60).toString();
+          e.rSec.text = (vi.restSeconds % 60).toString().padLeft(2, '0');
         }
-        return entry;
+        if (vi.strokeRateCap != null) e.rate.text = vi.strokeRateCap.toString();
+        return e;
       }).toList();
+    }
+  }
+
+  void _syncRateCaps() {
+    final count = int.tryParse(_intervalCountController.text) ?? 0;
+    if (count > 50) return; // Basic sanity check
+    while (_intervalRateCapControllers.length < count) {
+      _intervalRateCapControllers.add(TextEditingController());
+    }
+    while (_intervalRateCapControllers.length > count) {
+      _intervalRateCapControllers.removeLast().dispose();
     }
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _descriptionController.dispose();
-    _singleDistanceController.dispose();
-    _singleTimeMinController.dispose();
-    _singleTimeSecController.dispose();
-    _intervalCountController.dispose();
-    _intervalDistanceController.dispose();
-    _intervalTimeMinController.dispose();
-    _intervalTimeSecController.dispose();
-    _restMinController.dispose();
-    _restSecController.dispose();
-    for (final entry in _variableIntervals) {
-      entry.dispose();
+    _intervalCountFocusNode.dispose();
+    for (final c in [
+      _nameController,
+      _descriptionController,
+      _singleDistanceController,
+      _singleTimeMinController,
+      _singleTimeSecController,
+      _singleRateCapController,
+      _intervalCountController,
+      _intervalDistanceController,
+      _intervalTimeMinController,
+      _intervalTimeSecController,
+      _restMinController,
+      _restSecController,
+    ]) {
+      c.dispose();
+    }
+    for (final c in _intervalRateCapControllers) {
+      c.dispose();
+    }
+    for (final e in _variableIntervals) {
+      e.dispose();
     }
     super.dispose();
   }
@@ -198,253 +217,102 @@ class _EditErgWorkoutScreenState extends State<EditErgWorkoutScreen> {
             ),
           ),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                // ── Workout Name ──
-                _buildSectionLabel('Workout Name'),
-                const SizedBox(height: 8),
-                _buildTextField(
-                  controller: _nameController,
-                  hint: 'e.g., 6x1000m',
-                ),
-                const SizedBox(height: 20),
-
-                // ── Erg Type ──
-                _buildSectionLabel('Erg Type'),
-                const SizedBox(height: 8),
-                _buildErgTypeChips(),
-                const SizedBox(height: 20),
-
-                // ── Format Toggle ──
-                _buildSectionLabel('Format'),
-                const SizedBox(height: 8),
-                _buildFormatToggle(),
-                const SizedBox(height: 20),
-
-                // ── Dynamic Fields ──
-                _buildDynamicFields(),
-                const SizedBox(height: 20),
-
-                // ── Description ──
-                _buildSectionLabel('Notes (optional)'),
-                const SizedBox(height: 8),
-                _buildTextField(
-                  controller: _descriptionController,
-                  hint: 'Any notes for athletes...',
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 20),
-
-                // ── Options ──
-                _buildOptionsCard(),
-                const SizedBox(height: 32),
-
-                // ── Save Button ──
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: _isSaving ? null : _saveChanges,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                      foregroundColor: _onPrimary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: _isSaving
-                        ? SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: _onPrimary,
-                            ),
-                          )
-                        : const Text(
-                            'Save Changes',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  BoathouseStyles.sectionLabel('Workout Name'),
+                  BoathouseStyles.textField(
+                    primaryColor: primaryColor,
+                    controller: _nameController,
+                    hintText: 'e.g., 6x1000m',
+                    validator: (v) =>
+                        v == null || v.isEmpty ? 'Name required' : null,
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 20),
 
-                // ── Delete Button ──
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: OutlinedButton(
+                  BoathouseStyles.sectionLabel('Erg Type'),
+                  BoathouseStyles.toggleChipRow(
+                    primaryColor: primaryColor,
+                    labels: const ['Single', 'Intervals', 'Variable'],
+                    selectedIndex: ErgType.values.indexOf(_ergType),
+                    onSelected: (i) =>
+                        setState(() => _ergType = ErgType.values[i]),
+                    filled: true,
+                  ),
+                  const SizedBox(height: 20),
+
+                  BoathouseStyles.sectionLabel('Format'),
+                  BoathouseStyles.toggleChipRow(
+                    primaryColor: primaryColor,
+                    labels: const ['Distance', 'Time'],
+                    icons: const [Icons.straighten, Icons.timer],
+                    selectedIndex: _ergFormat == ErgFormat.distance ? 0 : 1,
+                    onSelected: (i) => setState(
+                      () => _ergFormat = i == 0
+                          ? ErgFormat.distance
+                          : ErgFormat.time,
+                    ),
+                    spacing: 12,
+                  ),
+                  const SizedBox(height: 20),
+
+                  _buildDynamicFields(),
+                  const SizedBox(height: 20),
+
+                  BoathouseStyles.sectionLabel('Notes (optional)'),
+                  BoathouseStyles.textField(
+                    primaryColor: primaryColor,
+                    controller: _descriptionController,
+                    hintText: 'Any notes for athletes...',
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 20),
+
+                  BoathouseStyles.switchCard(
+                    primaryColor: primaryColor,
+                    switches: [
+                      SwitchTileData(
+                        title: 'Benchmark Test',
+                        subtitle: 'Track as official test piece',
+                        value: _isBenchmark,
+                        onChanged: (v) => setState(() => _isBenchmark = v),
+                      ),
+                      SwitchTileData(
+                        title: 'Hide Until Practice',
+                        subtitle: "Athletes can't see until start time",
+                        value: _hideUntilStart,
+                        onChanged: (v) => setState(() => _hideUntilStart = v),
+                      ),
+                      SwitchTileData(
+                        title: 'Athletes See Results',
+                        subtitle: "Athletes can view each other's results",
+                        value: _athletesCanSeeResults,
+                        onChanged: (v) =>
+                            setState(() => _athletesCanSeeResults = v),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+
+                  BoathouseStyles.primaryButton(
+                    primaryColor: primaryColor,
+                    label: 'Save Changes',
+                    onPressed: _saveChanges,
+                    isLoading: _isSaving,
+                  ),
+                  const SizedBox(height: 16),
+                  BoathouseStyles.destructiveButton(
+                    label: 'Remove Workout',
                     onPressed: _isSaving ? null : _confirmDelete,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red, width: 1.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: const Text(
-                      'Remove Workout',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
                   ),
-                ),
-                const SizedBox(height: 40),
-              ],
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // FORM WIDGETS (mirror CreateErgWorkoutScreen)
-  // ═══════════════════════════════════════════════════════════
-
-  Widget _buildSectionLabel(String label) {
-    return Text(
-      label,
-      style: TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        color: Colors.grey[700],
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    int maxLines = 1,
-    TextInputType? keyboardType,
-    String? suffix,
-  }) {
-    return TextField(
-      controller: controller,
-      maxLines: maxLines,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(
-        hintText: hint,
-        suffixText: suffix,
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: primaryColor, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErgTypeChips() {
-    return Row(
-      children: ErgType.values.map((type) {
-        final isSelected = _ergType == type;
-        String label;
-        switch (type) {
-          case ErgType.single:
-            label = 'Single';
-            break;
-          case ErgType.standardIntervals:
-            label = 'Intervals';
-            break;
-          case ErgType.variableIntervals:
-            label = 'Variable';
-            break;
-        }
-        return Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(
-              right: type != ErgType.variableIntervals ? 8 : 0,
-            ),
-            child: ChoiceChip(
-              label: Text(label),
-              selected: isSelected,
-              onSelected: (_) => setState(() => _ergType = type),
-              selectedColor: primaryColor.withOpacity(0.15),
-              labelStyle: TextStyle(
-                color: isSelected ? primaryColor : Colors.grey[600],
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                side: BorderSide(
-                  color: isSelected ? primaryColor : Colors.grey.shade300,
-                ),
-              ),
-              showCheckmark: false,
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildFormatToggle() {
-    return Row(
-      children: [
-        _buildFormatButton(ErgFormat.distance, Icons.straighten, 'Distance'),
-        const SizedBox(width: 10),
-        _buildFormatButton(ErgFormat.time, Icons.timer_outlined, 'Time'),
-      ],
-    );
-  }
-
-  Widget _buildFormatButton(ErgFormat format, IconData icon, String label) {
-    final isSelected = _ergFormat == format;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _ergFormat = format),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: isSelected ? primaryColor.withOpacity(0.1) : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? primaryColor : Colors.grey.shade300,
-              width: isSelected ? 2 : 1,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 18,
-                color: isSelected ? primaryColor : Colors.grey[500],
-              ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  color: isSelected ? primaryColor : Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -454,280 +322,297 @@ class _EditErgWorkoutScreenState extends State<EditErgWorkoutScreen> {
       case ErgType.single:
         return _buildSingleFields();
       case ErgType.standardIntervals:
-        return _buildStandardIntervalFields();
+        return _buildStdFields();
       case ErgType.variableIntervals:
-        return _buildVariableIntervalFields();
+        return _buildVarFields();
     }
   }
 
-  Widget _buildSingleFields() {
-    if (_ergFormat == ErgFormat.distance) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSingleFields() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      if (_ergFormat == ErgFormat.distance) ...[
+        BoathouseStyles.sectionLabel('Distance'),
+        BoathouseStyles.numberField(
+          primaryColor: primaryColor,
+          controller: _singleDistanceController,
+          hintText: 'e.g., 2000',
+          suffixText: 'm',
+          validator: (v) => v!.isEmpty ? 'Required' : null,
+        ),
+      ] else ...[
+        BoathouseStyles.sectionLabel('Time'),
+        BoathouseStyles.timeInput(
+          primaryColor: primaryColor,
+          minController: _singleTimeMinController,
+          secController: _singleTimeSecController,
+        ),
+      ],
+      const SizedBox(height: 16),
+      BoathouseStyles.sectionLabel('Rate Cap (spm)'),
+      BoathouseStyles.numberField(
+        primaryColor: primaryColor,
+        controller: _singleRateCapController,
+        hintText: 'No cap',
+        suffixText: 'spm',
+      ),
+    ],
+  );
+
+  Widget _buildStdFields() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      BoathouseStyles.sectionLabel('Number of Intervals'),
+      // We wrap it in a Focus widget to detect when the user clicks away
+      Focus(
+        onFocusChange: (hasFocus) {
+          if (!hasFocus) {
+            setState(() => _syncRateCaps());
+          }
+        },
+        child: BoathouseStyles.numberField(
+          primaryColor: primaryColor,
+          controller: _intervalCountController,
+          // focusNode parameter removed from here
+          hintText: 'e.g., 6',
+          validator: (v) => v!.isEmpty ? 'Required' : null,
+        ),
+      ),
+      const SizedBox(height: 16),
+      BoathouseStyles.sectionLabel(
+        _ergFormat == ErgFormat.distance
+            ? 'Distance per Interval'
+            : 'Time per Interval',
+      ),
+      if (_ergFormat == ErgFormat.distance)
+        BoathouseStyles.numberField(
+          primaryColor: primaryColor,
+          controller: _intervalDistanceController,
+          hintText: 'e.g., 1000',
+          suffixText: 'm',
+          validator: (v) => v!.isEmpty ? 'Required' : null,
+        )
+      else
+        BoathouseStyles.timeInput(
+          primaryColor: primaryColor,
+          minController: _intervalTimeMinController,
+          secController: _intervalTimeSecController,
+        ),
+      const SizedBox(height: 16),
+      BoathouseStyles.sectionLabel('Rest Between'),
+      BoathouseStyles.timeInput(
+        primaryColor: primaryColor,
+        minController: _restMinController,
+        secController: _restSecController,
+      ),
+      if (_intervalRateCapControllers.isNotEmpty) ...[
+        const SizedBox(height: 16),
+        BoathouseStyles.sectionLabel('Rate Caps (spm per interval)'),
+        _buildRateCapGrid(),
+      ],
+    ],
+  );
+
+  Widget _buildVarFields() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _buildSectionLabel('Distance'),
-          const SizedBox(height: 8),
-          _buildTextField(
-            controller: _singleDistanceController,
-            hint: 'e.g., 2000',
-            keyboardType: TextInputType.number,
-            suffix: 'm',
+          BoathouseStyles.sectionLabel('Intervals', bottomPadding: 0),
+          TextButton.icon(
+            onPressed: () => setState(() => _variableIntervals.add(_VIEntry())),
+            icon: Icon(Icons.add, size: 18, color: primaryColor),
+            label: Text('Add', style: TextStyle(color: primaryColor)),
           ),
         ],
-      );
-    } else {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionLabel('Time'),
-          const SizedBox(height: 8),
-          _buildTimeRow(_singleTimeMinController, _singleTimeSecController),
-        ],
-      );
-    }
-  }
-
-  Widget _buildStandardIntervalFields() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionLabel('Number of Intervals'),
-        const SizedBox(height: 8),
-        _buildTextField(
-          controller: _intervalCountController,
-          hint: 'e.g., 6',
-          keyboardType: TextInputType.number,
-        ),
-        const SizedBox(height: 16),
-        _buildSectionLabel(
-          _ergFormat == ErgFormat.distance
-              ? 'Distance per Interval'
-              : 'Time per Interval',
-        ),
-        const SizedBox(height: 8),
-        if (_ergFormat == ErgFormat.distance)
-          _buildTextField(
-            controller: _intervalDistanceController,
-            hint: 'e.g., 1000',
-            keyboardType: TextInputType.number,
-            suffix: 'm',
-          )
-        else
-          _buildTimeRow(_intervalTimeMinController, _intervalTimeSecController),
-        const SizedBox(height: 16),
-        _buildSectionLabel('Rest Between'),
-        const SizedBox(height: 8),
-        _buildTimeRow(_restMinController, _restSecController),
-      ],
-    );
-  }
-
-  Widget _buildVariableIntervalFields() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _buildSectionLabel('Intervals'),
-            TextButton.icon(
-              onPressed: _addVariableInterval,
-              icon: Icon(Icons.add, size: 18, color: primaryColor),
-              label: Text('Add', style: TextStyle(color: primaryColor)),
+      ),
+      const SizedBox(height: 8),
+      if (_variableIntervals.isEmpty)
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          alignment: Alignment.center,
+          child: Text(
+            'Tap "Add" to create intervals',
+            style: TextStyle(color: Colors.grey[400], fontSize: 14),
+          ),
+        )
+      else
+        ..._variableIntervals.asMap().entries.map((entry) {
+          final i = entry.key;
+          final vi = entry.value;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        if (_variableIntervals.isEmpty)
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            alignment: Alignment.center,
-            child: Text(
-              'Tap "Add" to create intervals',
-              style: TextStyle(color: Colors.grey[400], fontSize: 14),
-            ),
-          )
-        else
-          ..._variableIntervals.asMap().entries.map((entry) {
-            final i = entry.key;
-            final vi = entry.value;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Interval ${i + 1}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: primaryColor.withOpacity(0.1),
+                      child: Text(
+                        '${i + 1}',
+                        style: TextStyle(
+                          color: primaryColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: () =>
-                            setState(() => _variableIntervals.removeAt(i)),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Interval ${i + 1}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
                       ),
-                    ],
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () => setState(() {
+                        _variableIntervals[i].dispose();
+                        _variableIntervals.removeAt(i);
+                      }),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                // Refinement: Support MM:SS in variable intervals
+                Text(
+                  _ergFormat == ErgFormat.distance ? 'Distance' : 'Time',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 4),
+                if (_ergFormat == ErgFormat.distance)
+                  BoathouseStyles.numberField(
+                    primaryColor: primaryColor,
+                    controller: vi.vMin,
+                    hintText: 'Meters',
+                    suffixText: 'm',
+                  )
+                else
+                  BoathouseStyles.compactTimeInput(
+                    primaryColor: primaryColor,
+                    minController: vi.vMin,
+                    secController: vi.vSec,
                   ),
-                  const SizedBox(height: 8),
-                  _buildTextField(
-                    controller: vi.valueController,
-                    hint: _ergFormat == ErgFormat.distance
-                        ? 'Distance (m)'
-                        : 'Time (sec)',
-                    keyboardType: TextInputType.number,
-                    suffix: _ergFormat == ErgFormat.distance ? 'm' : 's',
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Rest after',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 4),
-                  _buildTimeRow(vi.restMinController, vi.restSecController),
-                ],
-              ),
-            );
-          }),
-      ],
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Rest after',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          BoathouseStyles.compactTimeInput(
+                            primaryColor: primaryColor,
+                            minController: vi.rMin,
+                            secController: vi.rSec,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Rate Cap',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          BoathouseStyles.numberField(
+                            primaryColor: primaryColor,
+                            controller: vi.rate,
+                            hintText: '—',
+                            suffixText: 'spm',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }),
+    ],
+  );
+
+  Widget _buildRateCapGrid() {
+    final c = _intervalRateCapControllers.length;
+    return Column(
+      children: List.generate((c / 2).ceil(), (row) {
+        final i1 = row * 2;
+        final i2 = i1 + 1;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            children: [
+              Expanded(child: _rateCapCell(i1)),
+              const SizedBox(width: 10),
+              if (i2 < c)
+                Expanded(child: _rateCapCell(i2))
+              else
+                const Expanded(child: SizedBox()),
+            ],
+          ),
+        );
+      }),
     );
   }
 
-  Widget _buildTimeRow(
-    TextEditingController minCtrl,
-    TextEditingController secCtrl,
-  ) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildTextField(
-            controller: minCtrl,
-            hint: 'min',
-            keyboardType: TextInputType.number,
+  Widget _rateCapCell(int i) => Row(
+    children: [
+      SizedBox(
+        width: 24,
+        child: Text(
+          '${i + 1}.',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[600],
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Text(
-            ':',
-            style: TextStyle(fontSize: 20, color: Colors.grey[400]),
-          ),
-        ),
-        Expanded(
-          child: _buildTextField(
-            controller: secCtrl,
-            hint: 'sec',
-            keyboardType: TextInputType.number,
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _addVariableInterval() {
-    setState(() => _variableIntervals.add(_VariableIntervalEntry()));
-  }
-
-  Widget _buildOptionsCard() {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade200),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Column(
-          children: [
-            SwitchListTile(
-              title: const Text(
-                'Benchmark Test',
-                style: TextStyle(fontSize: 15),
-              ),
-              subtitle: Text(
-                'Track as official test piece',
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-              ),
-              value: _isBenchmark,
-              onChanged: (v) => setState(() => _isBenchmark = v),
-              activeColor: primaryColor,
-            ),
-            const Divider(height: 1, indent: 16, endIndent: 16),
-            SwitchListTile(
-              title: const Text(
-                'Hide Until Practice',
-                style: TextStyle(fontSize: 15),
-              ),
-              subtitle: Text(
-                'Athletes can\'t see until start time',
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-              ),
-              value: _hideUntilStart,
-              onChanged: (v) => setState(() => _hideUntilStart = v),
-              activeColor: primaryColor,
-            ),
-            const Divider(height: 1, indent: 16, endIndent: 16),
-            SwitchListTile(
-              title: const Text(
-                'Athletes See Results',
-                style: TextStyle(fontSize: 15),
-              ),
-              subtitle: Text(
-                'Athletes can view each other\'s results',
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-              ),
-              value: _athletesCanSeeResults,
-              onChanged: (v) => setState(() => _athletesCanSeeResults = v),
-              activeColor: primaryColor,
-            ),
-          ],
+      const SizedBox(width: 4),
+      Expanded(
+        child: BoathouseStyles.compactNumberField(
+          primaryColor: primaryColor,
+          controller: _intervalRateCapControllers[i],
+          hintText: '—',
+          suffixText: 'spm',
         ),
       ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════
-  // SAVE / DELETE
-  // ═══════════════════════════════════════════════════════════
+    ],
+  );
 
   Future<void> _saveChanges() async {
-    if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a workout name'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    if (!_validateFields()) return;
+    if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
-
     try {
-      final now = DateTime.now();
-      final updatedTemplate = _buildUpdatedTemplate(now);
-      final updatedSession = _buildUpdatedSession();
-
-      // Update template
-      await _workoutService.updateTemplate(updatedTemplate);
-
-      // Update session
-      await _workoutService.updateSession(updatedSession);
-
+      await _workoutService.updateTemplate(_buildTemplate(DateTime.now()));
+      await _workoutService.updateSession(_buildSession());
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -735,172 +620,119 @@ class _EditErgWorkoutScreenState extends State<EditErgWorkoutScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context, true); // Return true to signal refresh
+        Navigator.pop(context, true);
       }
     } catch (e) {
       setState(() => _isSaving = false);
-      if (mounted) {
+      if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
-      }
     }
   }
 
   Future<void> _confirmDelete() async {
-    final confirmed = await showDialog<bool>(
+    final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('Remove Workout'),
         content: const Text(
-          'This will remove the workout from this practice. '
-          'The template will still be available for future use.',
+          'This will remove the workout from this practice. The template will still be available for future use.',
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Remove'),
           ),
         ],
       ),
     );
-
-    if (confirmed == true) {
-      setState(() => _isSaving = true);
-      try {
-        // Unlink from calendar event
-        if (widget.existingSession.calendarEventId != null) {
-          await _calendarService.unlinkWorkoutFromEvent(
-            widget.existingSession.calendarEventId!,
-            widget.existingSession.id,
-          );
-        }
-
-        // Delete the session (keep template for reuse)
-        await _workoutService.deleteSession(
-          widget.organization.id,
+    if (ok != true) return;
+    setState(() => _isSaving = true);
+    try {
+      if (widget.existingSession.calendarEventId != null) {
+        await _calendarService.unlinkWorkoutFromEvent(
+          widget.existingSession.calendarEventId!,
           widget.existingSession.id,
         );
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Workout removed'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.pop(context, true);
-        }
-      } catch (e) {
-        setState(() => _isSaving = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-          );
-        }
       }
-    }
-  }
-
-  bool _validateFields() {
-    String? error;
-    switch (_ergType) {
-      case ErgType.single:
-        if (_ergFormat == ErgFormat.distance &&
-            _singleDistanceController.text.isEmpty) {
-          error = 'Enter a distance';
-        } else if (_ergFormat == ErgFormat.time &&
-            _singleTimeMinController.text.isEmpty &&
-            _singleTimeSecController.text.isEmpty) {
-          error = 'Enter a time';
-        }
-        break;
-      case ErgType.standardIntervals:
-        if (_intervalCountController.text.isEmpty) {
-          error = 'Enter number of intervals';
-        } else if (_ergFormat == ErgFormat.distance &&
-            _intervalDistanceController.text.isEmpty) {
-          error = 'Enter distance per interval';
-        } else if (_ergFormat == ErgFormat.time &&
-            _intervalTimeMinController.text.isEmpty &&
-            _intervalTimeSecController.text.isEmpty) {
-          error = 'Enter time per interval';
-        }
-        break;
-      case ErgType.variableIntervals:
-        if (_variableIntervals.isEmpty) {
-          error = 'Add at least one interval';
-        } else {
-          for (int i = 0; i < _variableIntervals.length; i++) {
-            if (_variableIntervals[i].valueController.text.isEmpty) {
-              error = 'Enter value for interval ${i + 1}';
-              break;
-            }
-          }
-        }
-        break;
-    }
-    if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: Colors.orange),
+      await _workoutService.deleteSession(
+        widget.organization.id,
+        widget.existingSession.id,
       );
-      return false;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Workout removed'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      setState(() => _isSaving = false);
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
     }
-    return true;
   }
 
-  WorkoutTemplate _buildUpdatedTemplate(DateTime now) {
-    int? targetDistance;
-    int? targetTime;
-    int? intervalCount;
-    int? intervalDistance;
-    int? intervalTime;
-    int? restSeconds;
-    List<VariableInterval>? variableIntervals;
+  WorkoutTemplate _buildTemplate(DateTime now) {
+    int? targetDist, targetTime, intCount, intDist, intTime, rest, rateCap;
+    List<int?>? intRateCaps;
+    List<VariableInterval>? varInts;
 
     switch (_ergType) {
       case ErgType.single:
         if (_ergFormat == ErgFormat.distance) {
-          targetDistance = int.tryParse(_singleDistanceController.text);
+          targetDist = int.tryParse(_singleDistanceController.text);
         } else {
-          final min = int.tryParse(_singleTimeMinController.text) ?? 0;
-          final sec = int.tryParse(_singleTimeSecController.text) ?? 0;
-          targetTime = min * 60 + sec;
+          final m = int.tryParse(_singleTimeMinController.text) ?? 0;
+          final s = int.tryParse(_singleTimeSecController.text) ?? 0;
+          targetTime = m * 60 + s;
         }
+        rateCap = int.tryParse(_singleRateCapController.text);
         break;
       case ErgType.standardIntervals:
-        intervalCount = int.tryParse(_intervalCountController.text);
+        intCount = int.tryParse(_intervalCountController.text);
         if (_ergFormat == ErgFormat.distance) {
-          intervalDistance = int.tryParse(_intervalDistanceController.text);
+          intDist = int.tryParse(_intervalDistanceController.text);
         } else {
-          final min = int.tryParse(_intervalTimeMinController.text) ?? 0;
-          final sec = int.tryParse(_intervalTimeSecController.text) ?? 0;
-          intervalTime = min * 60 + sec;
+          final m = int.tryParse(_intervalTimeMinController.text) ?? 0;
+          final s = int.tryParse(_intervalTimeSecController.text) ?? 0;
+          intTime = m * 60 + s;
         }
-        final rMin = int.tryParse(_restMinController.text) ?? 0;
-        final rSec = int.tryParse(_restSecController.text) ?? 0;
-        restSeconds = rMin * 60 + rSec;
+        final rm = int.tryParse(_restMinController.text) ?? 0;
+        final rs = int.tryParse(_restSecController.text) ?? 0;
+        rest = rm * 60 + rs;
+        if (_intervalRateCapControllers.isNotEmpty) {
+          intRateCaps = _intervalRateCapControllers
+              .map((c) => int.tryParse(c.text))
+              .toList();
+        }
         break;
       case ErgType.variableIntervals:
-        variableIntervals = _variableIntervals.map((entry) {
-          final val = int.tryParse(entry.valueController.text) ?? 0;
-          final rMin = int.tryParse(entry.restMinController.text) ?? 0;
-          final rSec = int.tryParse(entry.restSecController.text) ?? 0;
+        varInts = _variableIntervals.map((e) {
+          final m = int.tryParse(e.vMin.text) ?? 0;
+          final s = int.tryParse(e.vSec.text) ?? 0;
+          final rm = int.tryParse(e.rMin.text) ?? 0;
+          final rs = int.tryParse(e.rSec.text) ?? 0;
           return VariableInterval(
-            distance: _ergFormat == ErgFormat.distance ? val : null,
-            time: _ergFormat == ErgFormat.time ? val : null,
-            restSeconds: rMin * 60 + rSec,
+            distance: _ergFormat == ErgFormat.distance ? m : null,
+            time: _ergFormat == ErgFormat.time ? (m * 60 + s) : null,
+            restSeconds: rm * 60 + rs,
+            strokeRateCap: int.tryParse(e.rate.text),
           );
         }).toList();
         break;
     }
-
     return widget.existingTemplate.copyWith(
       updatedAt: now,
       name: _nameController.text.trim(),
@@ -910,34 +742,36 @@ class _EditErgWorkoutScreenState extends State<EditErgWorkoutScreen> {
           : null,
       ergType: _ergType,
       ergFormat: _ergFormat,
-      targetDistance: targetDistance,
+      targetDistance: targetDist,
       targetTime: targetTime,
-      intervalCount: intervalCount,
-      intervalDistance: intervalDistance,
-      intervalTime: intervalTime,
-      restSeconds: restSeconds,
-      variableIntervals: variableIntervals,
+      intervalCount: intCount,
+      intervalDistance: intDist,
+      intervalTime: intTime,
+      restSeconds: rest,
+      variableIntervals: varInts,
+      strokeRateCap: rateCap,
+      intervalStrokeRateCaps: intRateCaps,
     );
   }
 
-  WorkoutSession _buildUpdatedSession() {
-    return widget.existingSession.copyWith(
-      name: _nameController.text.trim(),
-      hideUntilStart: _hideUntilStart,
-      athletesCanSeeResults: _athletesCanSeeResults,
-    );
-  }
+  WorkoutSession _buildSession() => widget.existingSession.copyWith(
+    name: _nameController.text.trim(),
+    hideUntilStart: _hideUntilStart,
+    athletesCanSeeResults: _athletesCanSeeResults,
+  );
 }
 
-/// Helper for variable interval form entries
-class _VariableIntervalEntry {
-  final TextEditingController valueController = TextEditingController();
-  final TextEditingController restMinController = TextEditingController();
-  final TextEditingController restSecController = TextEditingController();
-
+class _VIEntry {
+  final vMin = TextEditingController();
+  final vSec = TextEditingController();
+  final rMin = TextEditingController();
+  final rSec = TextEditingController();
+  final rate = TextEditingController();
   void dispose() {
-    valueController.dispose();
-    restMinController.dispose();
-    restSecController.dispose();
+    vMin.dispose();
+    vSec.dispose();
+    rMin.dispose();
+    rSec.dispose();
+    rate.dispose();
   }
 }

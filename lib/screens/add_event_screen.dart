@@ -5,6 +5,7 @@ import '../models/organization.dart';
 import '../models/team.dart';
 import '../services/calendar_service.dart';
 import '../widgets/team_header.dart';
+import '../utils/boathouse_styles.dart';
 
 class AddEventScreen extends StatefulWidget {
   final Organization organization;
@@ -105,30 +106,22 @@ class _AddEventScreenState extends State<AddEventScreen> {
                 padding: const EdgeInsets.all(24),
                 children: [
                   // ── Title ──
-                  TextFormField(
+                  BoathouseStyles.sectionLabel('Event Title'),
+                  BoathouseStyles.textField(
+                    primaryColor: primaryColor,
                     controller: _titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Event Title',
-                      border: UnderlineInputBorder(),
-                      floatingLabelStyle: TextStyle(color: Colors.grey),
-                    ),
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    hintText: 'Morning Practice',
                     validator: (v) =>
-                        v!.isEmpty ? 'Please enter a title' : null,
+                        v == null || v.isEmpty ? 'Please enter a title' : null,
                   ),
                   const SizedBox(height: 32),
 
                   // ── Event type ──
                   if (widget.team != null) ...[
-                    DropdownButtonFormField<EventType>(
+                    BoathouseStyles.sectionLabel('Event Type'),
+                    BoathouseStyles.dropdown<EventType>(
+                      primaryColor: primaryColor,
                       value: _selectedType,
-                      decoration: const InputDecoration(
-                        labelText: 'Event Type',
-                        prefixIcon: Icon(Icons.category_outlined),
-                      ),
                       items: _availableTypes
                           .map(
                             (type) => DropdownMenuItem(
@@ -137,30 +130,30 @@ class _AddEventScreenState extends State<AddEventScreen> {
                             ),
                           )
                           .toList(),
-                      onChanged: (v) => setState(() {
-                        _selectedType = v!;
-                        // Reset recurring if switching away from practice
-                        if (!_canRecur) {
-                          _isRecurring = false;
-                          _recurringDays.clear();
-                          _recurringEndDate = null;
-                        }
-                      }),
+                      onChanged: (v) {
+                        setState(() {
+                          _selectedType = v!;
+                          if (!_canRecur) {
+                            _isRecurring = false;
+                            _recurringDays.clear();
+                            _recurringEndDate = null;
+                          }
+                        });
+                      },
                     ),
                   ] else ...[
+                    BoathouseStyles.sectionLabel('Event type'),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.corporate_fare),
-                      title: const Text('Event Type'),
-                      subtitle: Text(
-                        EventType.organization.typeDisplayName,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
+                      title: Text(EventType.organization.typeDisplayName),
                     ),
                   ],
                   const SizedBox(height: 24),
 
                   // ── Date & time ──
+                  BoathouseStyles.sectionLabel('Date and Time'),
+                  const SizedBox(height: 12),
                   _buildDateTimePickers(),
                   const SizedBox(height: 24),
 
@@ -171,22 +164,22 @@ class _AddEventScreenState extends State<AddEventScreen> {
                   ],
 
                   // ── Location ──
-                  TextFormField(
+                  BoathouseStyles.sectionLabel('Location'),
+                  BoathouseStyles.textField(
+                    primaryColor: primaryColor,
                     controller: _locationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Location',
-                      prefixIcon: Icon(Icons.location_on_outlined),
-                    ),
+                    hintText: 'Boathouse',
+                    prefixIcon: const Icon(Icons.location_on_outlined),
                   ),
                   const SizedBox(height: 24),
 
                   // ── Notes ──
-                  TextFormField(
+                  BoathouseStyles.sectionLabel('Notes'),
+                  BoathouseStyles.textField(
+                    primaryColor: primaryColor,
                     controller: _descriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Notes',
-                      prefixIcon: Icon(Icons.notes),
-                    ),
+                    hintText: 'Any notes for athletes here',
+                    prefixIcon: const Icon(Icons.notes),
                     maxLines: 3,
                   ),
                   const SizedBox(height: 40),
@@ -195,34 +188,13 @@ class _AddEventScreenState extends State<AddEventScreen> {
                   SizedBox(
                     width: double.infinity,
                     height: 55,
-                    child: ElevatedButton(
-                      onPressed: _isSaving ? null : _saveEvent,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: _textOnPrimary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: _isSaving
-                          ? SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: _textOnPrimary,
-                              ),
-                            )
-                          : Text(
-                              _isRecurring
-                                  ? 'Create Recurring Schedule'
-                                  : 'Save Event',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                    child: BoathouseStyles.primaryButton(
+                      primaryColor: primaryColor,
+                      label: _isRecurring
+                          ? 'Create Recurring Schedule'
+                          : 'Save Event',
+                      isLoading: _isSaving,
+                      onPressed: _saveEvent,
                     ),
                   ),
 
@@ -251,14 +223,10 @@ class _AddEventScreenState extends State<AddEventScreen> {
   Widget _buildDateTimePickers() {
     return Column(
       children: [
-        // Date
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.calendar_today),
-          title: Text(
-            DateFormat('EEEE, MMM d').format(_selectedDate),
-            style: const TextStyle(fontSize: 16),
-          ),
+        BoathouseStyles.pickerRow(
+          primaryColor: primaryColor,
+          icon: Icons.calendar_today,
+          text: DateFormat('EEEE, MMM d').format(_selectedDate),
           onTap: () async {
             final d = await showDatePicker(
               context: context,
@@ -269,17 +237,14 @@ class _AddEventScreenState extends State<AddEventScreen> {
             if (d != null) setState(() => _selectedDate = d);
           },
         ),
-        // Start & end time
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.access_time),
-                title: Text(
-                  _startTime.format(context),
-                  style: const TextStyle(fontSize: 16),
-                ),
+              child: BoathouseStyles.pickerRow(
+                primaryColor: primaryColor,
+                icon: Icons.access_time,
+                text: _startTime.format(context),
                 onTap: () async {
                   final t = await showTimePicker(
                     context: context,
@@ -289,18 +254,12 @@ class _AddEventScreenState extends State<AddEventScreen> {
                 },
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4),
-              child: Text('to', style: TextStyle(fontSize: 16)),
-            ),
+            const SizedBox(width: 8),
             Expanded(
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const SizedBox(width: 24), // alignment spacer
-                title: Text(
-                  _endTime.format(context),
-                  style: const TextStyle(fontSize: 16),
-                ),
+              child: BoathouseStyles.pickerRow(
+                primaryColor: primaryColor,
+                icon: Icons.access_time,
+                text: _endTime.format(context),
                 onTap: () async {
                   final t = await showTimePicker(
                     context: context,
@@ -319,98 +278,61 @@ class _AddEventScreenState extends State<AddEventScreen> {
   // ── Recurring practices section ──────────────────────────────
 
   Widget _buildRecurringSection() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return BoathouseStyles.card(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Toggle
-          SwitchListTile(
-            title: const Text('Recurring Schedule'),
-            subtitle: const Text('Create practices on multiple days'),
-            value: _isRecurring,
-            activeColor: primaryColor,
-            onChanged: (v) => setState(() {
-              _isRecurring = v;
-              if (v && _recurringEndDate == null) {
-                // Default to 3 months out
-                _recurringEndDate = _selectedDate.add(const Duration(days: 90));
-              }
-            }),
+          BoathouseStyles.switchCard(
+            primaryColor: primaryColor,
+            switches: [
+              SwitchTileData(
+                title: 'Recurring Schedule',
+                subtitle: 'Create practices on multiple days',
+                value: _isRecurring,
+                onChanged: (v) {
+                  setState(() {
+                    _isRecurring = v;
+                    if (v && _recurringEndDate == null) {
+                      _recurringEndDate = _selectedDate.add(
+                        const Duration(days: 90),
+                      );
+                    }
+                  });
+                },
+              ),
+            ],
           ),
 
           if (_isRecurring) ...[
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Repeat on',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildDaySelector(),
-                  const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-                  // End date
-                  Text(
-                    'Until',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () async {
-                      final d = await showDatePicker(
-                        context: context,
-                        initialDate:
-                            _recurringEndDate ??
-                            _selectedDate.add(const Duration(days: 90)),
-                        firstDate: _selectedDate.add(const Duration(days: 1)),
-                        lastDate: DateTime(2030),
-                      );
-                      if (d != null) {
-                        setState(() => _recurringEndDate = d);
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey[300]!),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.event, color: primaryColor, size: 20),
-                          const SizedBox(width: 12),
-                          Text(
-                            _recurringEndDate != null
-                                ? DateFormat(
-                                    'EEEE, MMM d, yyyy',
-                                  ).format(_recurringEndDate!)
-                                : 'Select end date',
-                            style: const TextStyle(fontSize: 15),
-                          ),
-                          const Spacer(),
-                          Icon(Icons.chevron_right, color: Colors.grey[400]),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-              ),
+            BoathouseStyles.sectionLabel('Repeat on'),
+
+            _buildDaySelector(),
+
+            const SizedBox(height: 20),
+
+            BoathouseStyles.sectionLabel('Until'),
+
+            BoathouseStyles.pickerRow(
+              primaryColor: primaryColor,
+              icon: Icons.event,
+              text: _recurringEndDate != null
+                  ? DateFormat('EEEE, MMM d, yyyy').format(_recurringEndDate!)
+                  : 'Select end date',
+              onTap: () async {
+                final d = await showDatePicker(
+                  context: context,
+                  initialDate:
+                      _recurringEndDate ??
+                      _selectedDate.add(const Duration(days: 90)),
+                  firstDate: _selectedDate.add(const Duration(days: 1)),
+                  lastDate: DateTime(2030),
+                );
+                if (d != null) {
+                  setState(() => _recurringEndDate = d);
+                }
+              },
             ),
           ],
         ],
@@ -429,42 +351,34 @@ class _AddEventScreenState extends State<AddEventScreen> {
       (7, 'Sun'),
     ];
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: days.map((entry) {
         final (dayNum, label) = entry;
         final selected = _recurringDays.contains(dayNum);
-        return GestureDetector(
-          onTap: () => setState(() {
-            if (selected) {
-              _recurringDays.remove(dayNum);
-            } else {
-              _recurringDays.add(dayNum);
-            }
-          }),
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: selected ? primaryColor : Colors.grey[100],
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: selected ? _textOnPrimary : Colors.grey[700],
-                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                  fontSize: 12,
-                ),
-              ),
-            ),
+
+        return SizedBox(
+          width: 70,
+          child: BoathouseStyles.toggleChip(
+            primaryColor: primaryColor,
+            label: label,
+            selected: selected,
+            filled: false,
+            onTap: () {
+              setState(() {
+                if (selected) {
+                  _recurringDays.remove(dayNum);
+                } else {
+                  _recurringDays.add(dayNum);
+                }
+              });
+            },
           ),
         );
       }).toList(),
     );
   }
-
   // ── Save logic ───────────────────────────────────────────────
 
   Future<void> _saveEvent() async {

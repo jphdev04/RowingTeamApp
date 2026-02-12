@@ -12,6 +12,7 @@ import '../services/workout_service.dart';
 import '../widgets/team_header.dart';
 import 'edit_erg_workout_screen.dart';
 import 'create_workout_screen.dart';
+import 'create_water_workout_screen.dart';
 
 class CalendarEventDetailScreen extends StatefulWidget {
   final AppUser user;
@@ -607,6 +608,29 @@ class _CalendarEventDetailScreenState extends State<CalendarEventDetailScreen> {
           })
           .join(' / ');
       details.add(_DetailItem('Pieces', pieces));
+
+      // Show per-piece rate caps if any are set
+      final rateCaps = template.variableIntervals!
+          .where((vi) => vi.strokeRateCap != null)
+          .map((vi) => '${vi.strokeRateCap} spm')
+          .join(' / ');
+      if (rateCaps.isNotEmpty) {
+        details.add(_DetailItem('Rate Caps', rateCaps));
+      }
+    }
+
+    // Single piece rate cap
+    if (template.strokeRateCap != null) {
+      details.add(_DetailItem('Rate Cap', '${template.strokeRateCap} spm'));
+    }
+
+    // Per-interval rate caps for standard intervals
+    if (template.intervalStrokeRateCaps != null &&
+        template.intervalStrokeRateCaps!.any((c) => c != null)) {
+      final caps = template.intervalStrokeRateCaps!
+          .map((c) => c != null ? '$c' : '—')
+          .join(' / ');
+      details.add(_DetailItem('Rate Caps', '$caps spm'));
     }
 
     if (details.isEmpty) return const SizedBox.shrink();
@@ -765,28 +789,44 @@ class _CalendarEventDetailScreenState extends State<CalendarEventDetailScreen> {
   }
 
   void _editWorkout(WorkoutSession session, WorkoutTemplate? template) {
-    if (template == null || session.category != WorkoutCategory.erg) {
+    if (template == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Edit not yet available for this workout type'),
+          content: Text('Edit not yet available for this workout'),
         ),
       );
       return;
     }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EditErgWorkoutScreen(
-          user: widget.user,
-          currentMembership: widget.currentMembership,
-          organization: widget.organization,
-          team: widget.team,
-          existingTemplate: template,
-          existingSession: session,
-        ),
-      ),
-    ).then((_) => _refreshEvent());
+    switch (session.category) {
+      case WorkoutCategory.erg:
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => EditErgWorkoutScreen(
+              user: widget.user,
+              currentMembership: widget.currentMembership,
+              organization: widget.organization,
+              team: widget.team,
+              existingTemplate: template,
+              existingSession: session,
+            ),
+          ),
+        ).then((_) => _refreshEvent());
+        break;
+      case WorkoutCategory.water:
+        // TODO: EditWaterWorkoutScreen (follow same pattern as EditErgWorkoutScreen)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Water workout editing coming soon')),
+        );
+        break;
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Edit not yet available for this workout type'),
+          ),
+        );
+    }
   }
 }
 

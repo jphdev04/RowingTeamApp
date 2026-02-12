@@ -457,9 +457,11 @@ class BoathouseStyles {
   static Widget card({
     required Widget child,
     EdgeInsetsGeometry padding = const EdgeInsets.all(16),
+    EdgeInsetsGeometry? margin,
   }) {
     return Card(
       elevation: 0,
+      margin: margin,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(color: Colors.grey.shade200),

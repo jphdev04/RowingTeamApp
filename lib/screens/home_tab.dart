@@ -10,6 +10,8 @@ import 'roster_screen.dart';
 import 'organization_roster_screen.dart';
 import 'team_management_screen.dart';
 import 'join_requests_screen.dart';
+import 'pick_session_for_lineups_screen.dart';
+import "../scripts/seed_test_data.dart";
 
 class HomeTab extends StatelessWidget {
   final AppUser user;
@@ -259,7 +261,20 @@ class HomeTab extends StatelessWidget {
           subtitle: 'Create lineups',
           icon: Icons.sports,
           color: primaryColor,
-          onTap: () => _comingSoon(context, 'Lineups'),
+          onTap: () {
+            if (organization != null) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => PickSessionForLineupsScreen(
+                    user: user,
+                    currentMembership: currentMembership,
+                    organization: organization!,
+                    team: team,
+                  ),
+                ),
+              );
+            }
+          },
         ),
       ),
       const SizedBox(height: 12),
@@ -286,7 +301,7 @@ class HomeTab extends StatelessWidget {
           subtitle: 'Post updates',
           icon: Icons.campaign,
           color: primaryColor,
-          onTap: () => _comingSoon(context, 'Announcements'),
+          onTap: () => seedAll(),
         ),
         null,
       ),
@@ -364,7 +379,20 @@ class HomeTab extends StatelessWidget {
           subtitle: 'View lineups',
           icon: Icons.sports,
           color: primaryColor,
-          onTap: () => _comingSoon(context, 'Lineups'),
+          onTap: () {
+            if (organization != null) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => PickSessionForLineupsScreen(
+                    user: user,
+                    currentMembership: currentMembership,
+                    organization: organization!,
+                    team: team,
+                  ),
+                ),
+              );
+            }
+          },
         ),
         DashboardCard(
           title: 'Report Damage',
@@ -395,7 +423,7 @@ class HomeTab extends StatelessWidget {
           subtitle: 'Racing & events',
           icon: Icons.event,
           color: primaryColor,
-          onTap: () => _comingSoon(context, 'Team schedule'),
+          onTap: () => _comingSoon(context, 'Team Schedule'),
         ),
         DashboardCard(
           title: 'Team News',

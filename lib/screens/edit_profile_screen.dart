@@ -4,18 +4,22 @@ import '../models/membership.dart';
 import '../models/team.dart';
 import '../services/user_service.dart';
 import '../services/membership_service.dart';
+import '../utils/boathouse_styles.dart';
 import '../widgets/team_header.dart';
+import '../models/organization.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final AppUser user;
   final Membership membership;
   final Team? team;
+  final Organization? organization;
 
   const EditProfileScreen({
     super.key,
     required this.user,
     required this.membership,
     this.team,
+    required this.organization,
   });
 
   @override
@@ -83,7 +87,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       setState(() => _isLoading = true);
 
       try {
-        // Update user data
         final updatedUser = widget.user.copyWith(
           name: _nameController.text.trim(),
           phone: _phoneController.text.trim().isNotEmpty
@@ -106,7 +109,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
         await _userService.updateUser(updatedUser);
 
-        // Update membership-specific fields (for rowers)
         if (_isRower) {
           final updatedMembership = widget.membership.copyWith(
             side: _selectedSide,
@@ -140,15 +142,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         children: [
           TeamHeader(
             team: widget.team,
+            organization: widget.organization,
             title: 'Edit Profile',
             subtitle: 'Update your information',
             actions: [
               IconButton(
                 icon: Icon(
                   Icons.arrow_back,
-                  color:
-                      (widget.team?.primaryColorObj.computeLuminance() ?? 0) >
-                          0.5
+                  color: primaryColor.computeLuminance() > 0.5
                       ? Colors.black
                       : Colors.white,
                 ),
@@ -164,62 +165,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Profile picture placeholder
-                    Center(
-                      child: Stack(
-                        children: [
-                          CircleAvatar(
-                            radius: 60,
-                            backgroundColor: Colors.blue,
-                            child: Text(
-                              widget.user.name.isNotEmpty
-                                  ? widget.user.name[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(
-                                fontSize: 48,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color:
-                                    widget.team?.primaryColorObj ?? Colors.blue,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.camera_alt,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // Profile picture
+                    _buildProfileAvatar(),
                     const SizedBox(height: 32),
 
-                    const Text(
-                      'Basic Information',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    TextFormField(
+                    // ── Basic Information ──
+                    BoathouseStyles.sectionLabel('Basic Information'),
+                    const SizedBox(height: 8),
+                    BoathouseStyles.textField(
+                      primaryColor: primaryColor,
                       controller: _nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Full Name',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.person),
-                      ),
+                      labelText: 'Full Name',
+                      prefixIcon: const Icon(Icons.person),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'Please enter your name';
@@ -229,37 +186,34 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                     const SizedBox(height: 16),
 
+                    // Email (read-only)
                     TextFormField(
                       initialValue: widget.user.email,
-                      decoration: const InputDecoration(
+                      enabled: false,
+                      decoration: BoathouseStyles.inputDecoration(
+                        primaryColor: primaryColor,
                         labelText: 'Email',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.email),
-                        enabled: false,
+                        prefixIcon: Icon(Icons.email, color: Colors.grey[400]),
                       ),
                     ),
                     const SizedBox(height: 16),
 
-                    TextFormField(
+                    BoathouseStyles.textField(
+                      primaryColor: primaryColor,
                       controller: _phoneController,
-                      decoration: const InputDecoration(
-                        labelText: 'Phone Number (Optional)',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.phone),
-                      ),
+                      labelText: 'Phone Number (Optional)',
+                      prefixIcon: const Icon(Icons.phone),
                       keyboardType: TextInputType.phone,
                     ),
                     const SizedBox(height: 16),
 
                     // Gender (not for coaches/admins)
                     if (!_isCoach && !_isAdmin) ...[
-                      DropdownButtonFormField<String>(
+                      BoathouseStyles.dropdown<String>(
+                        primaryColor: primaryColor,
                         value: _selectedGender,
-                        decoration: const InputDecoration(
-                          labelText: 'Gender',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.person_outline),
-                        ),
+                        labelText: 'Gender',
+                        prefixIcon: const Icon(Icons.person_outline),
                         items: const [
                           DropdownMenuItem(value: 'male', child: Text('Male')),
                           DropdownMenuItem(
@@ -279,25 +233,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       const SizedBox(height: 16),
                     ],
 
-                    // Rower-specific fields
+                    // ── Rowing Details (rowers only) ──
                     if (_isRower) ...[
                       const SizedBox(height: 16),
-                      const Text(
-                        'Rowing Details',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
+                      BoathouseStyles.sectionLabel('Rowing Details'),
+                      const SizedBox(height: 8),
 
-                      DropdownButtonFormField<String>(
+                      BoathouseStyles.dropdown<String>(
+                        primaryColor: primaryColor,
                         value: _selectedSide,
-                        decoration: const InputDecoration(
-                          labelText: 'Side',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.swap_horiz),
-                        ),
+                        labelText: 'Side',
+                        prefixIcon: const Icon(Icons.swap_horiz),
                         items: const [
                           DropdownMenuItem(value: 'port', child: Text('Port')),
                           DropdownMenuItem(
@@ -313,13 +259,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       const SizedBox(height: 16),
 
                       if (_selectedGender != null)
-                        DropdownButtonFormField<String>(
+                        BoathouseStyles.dropdown<String>(
+                          primaryColor: primaryColor,
                           value: _selectedWeightClass,
-                          decoration: const InputDecoration(
-                            labelText: 'Weight Class',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.monitor_weight),
-                          ),
+                          labelText: 'Weight Class',
+                          prefixIcon: const Icon(Icons.monitor_weight),
                           items: _getWeightClassOptions()
                               .map(
                                 (wc) => DropdownMenuItem(
@@ -334,72 +278,55 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                     ],
 
-                    // Emergency contact
+                    // ── Emergency Contact ──
                     const SizedBox(height: 32),
-                    const Text(
-                      'Emergency Contact',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
+                    BoathouseStyles.sectionLabel('Emergency Contact'),
+                    const SizedBox(height: 8),
 
-                    TextFormField(
+                    BoathouseStyles.textField(
+                      primaryColor: primaryColor,
                       controller: _emergencyContactController,
-                      decoration: const InputDecoration(
-                        labelText: 'Emergency Contact Name',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.contact_emergency),
-                      ),
+                      labelText: 'Emergency Contact Name',
+                      prefixIcon: const Icon(Icons.contact_emergency),
                     ),
                     const SizedBox(height: 16),
 
-                    TextFormField(
+                    BoathouseStyles.textField(
+                      primaryColor: primaryColor,
                       controller: _emergencyPhoneController,
-                      decoration: const InputDecoration(
-                        labelText: 'Emergency Contact Phone',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.phone),
-                      ),
+                      labelText: 'Emergency Contact Phone',
+                      prefixIcon: const Icon(Icons.phone),
                       keyboardType: TextInputType.phone,
                     ),
 
-                    // Injury section (not for coaches/admins)
+                    // ── Injury Status (not for coaches/admins) ──
                     if (!_isCoach && !_isAdmin) ...[
                       const SizedBox(height: 32),
-                      const Text(
-                        'Injury Status',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
+                      BoathouseStyles.sectionLabel('Injury Status'),
+                      const SizedBox(height: 8),
 
-                      SwitchListTile(
-                        title: const Text('Currently Injured'),
-                        subtitle: const Text(
-                          'Toggle if you have an active injury',
-                        ),
-                        value: _hasInjury,
-                        onChanged: (value) {
-                          setState(() => _hasInjury = value);
-                        },
-                        contentPadding: EdgeInsets.zero,
+                      BoathouseStyles.switchCard(
+                        primaryColor: primaryColor,
+                        switches: [
+                          SwitchTileData(
+                            title: 'Currently Injured',
+                            subtitle: 'Toggle if you have an active injury',
+                            value: _hasInjury,
+                            onChanged: (value) {
+                              setState(() => _hasInjury = value);
+                            },
+                          ),
+                        ],
                       ),
 
                       if (_hasInjury) ...[
                         const SizedBox(height: 16),
-                        TextFormField(
+                        BoathouseStyles.textField(
+                          primaryColor: primaryColor,
                           controller: _injuryDetailsController,
-                          decoration: const InputDecoration(
-                            labelText: 'Injury Details',
-                            border: OutlineInputBorder(),
-                            hintText:
-                                'Describe your injury and any limitations',
-                            prefixIcon: Icon(Icons.healing),
-                          ),
+                          labelText: 'Injury Details',
+                          hintText: 'Describe your injury and any limitations',
+                          prefixIcon: const Icon(Icons.healing),
                           maxLines: 4,
                         ),
                       ],
@@ -407,30 +334,62 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
                     const SizedBox(height: 32),
 
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _saveProfile,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor:
-                              widget.team?.primaryColorObj ?? Colors.blue,
-                        ),
-                        child: _isLoading
-                            ? const CircularProgressIndicator(
-                                color: Colors.white,
-                              )
-                            : const Text(
-                                'Save Changes',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  color: Colors.white,
-                                ),
-                              ),
-                      ),
+                    // ── Save Button ──
+                    BoathouseStyles.primaryButton(
+                      primaryColor: primaryColor,
+                      label: 'Save Changes',
+                      isLoading: _isLoading,
+                      onPressed: _isLoading ? null : _saveProfile,
                     ),
+
+                    const SizedBox(height: 16),
                   ],
                 ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color get primaryColor =>
+      widget.team?.primaryColorObj ??
+      widget.organization?.primaryColorObj ??
+      Colors.blue;
+
+  Widget _buildProfileAvatar() {
+    return Center(
+      child: Stack(
+        children: [
+          CircleAvatar(
+            radius: 60,
+            backgroundColor: primaryColor,
+            child: Text(
+              widget.user.name.isNotEmpty
+                  ? widget.user.name[0].toUpperCase()
+                  : '?',
+              style: const TextStyle(
+                fontSize: 48,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: primaryColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Icon(
+                Icons.camera_alt,
+                color: Colors.white,
+                size: 20,
               ),
             ),
           ),

@@ -48,6 +48,62 @@ class CalendarService {
     }
   }
 
+  Future<List<CalendarEvent>> getEventsInRange(
+    String organizationId,
+    String? teamId,
+    DateTime start,
+    DateTime end,
+  ) async {
+    try {
+      Query query = _firestore
+          .collection(_collection)
+          .where('organizationId', isEqualTo: organizationId)
+          .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('startTime', isLessThanOrEqualTo: Timestamp.fromDate(end))
+          .orderBy('startTime');
+
+      if (teamId != null && teamId.isNotEmpty) {
+        query = query.where('teamId', isEqualTo: teamId);
+      }
+
+      final snapshot = await query.get();
+      return snapshot.docs
+          .map(
+            (doc) => CalendarEvent.fromFirestore(
+              doc as DocumentSnapshot<Map<String, dynamic>>,
+            ),
+          )
+          .toList();
+    } catch (e) {
+      // Fallback if composite index isn't ready
+      try {
+        Query query = _firestore
+            .collection(_collection)
+            .where('organizationId', isEqualTo: organizationId);
+
+        if (teamId != null && teamId.isNotEmpty) {
+          query = query.where('teamId', isEqualTo: teamId);
+        }
+
+        final snapshot = await query.get();
+        final events = snapshot.docs
+            .map(
+              (doc) => CalendarEvent.fromFirestore(
+                doc as DocumentSnapshot<Map<String, dynamic>>,
+              ),
+            )
+            .where(
+              (e) => !e.startTime.isBefore(start) && !e.startTime.isAfter(end),
+            )
+            .toList();
+        events.sort((a, b) => a.startTime.compareTo(b.startTime));
+        return events;
+      } catch (e2) {
+        throw 'Error getting events in range: $e2';
+      }
+    }
+  }
+
   // Get events for a team (real-time)
   Stream<List<CalendarEvent>> getTeamEvents(String teamId) {
     return _firestore

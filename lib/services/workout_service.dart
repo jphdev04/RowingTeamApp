@@ -282,6 +282,21 @@ class WorkoutService {
         );
   }
 
+  Future<void> updateSessionLineups(
+    String orgId,
+    String sessionId,
+    List<PieceLineup> lineups, {
+    bool? isSeatRace,
+    SeatRaceConfig? seatRaceConfig,
+  }) async {
+    final data = <String, dynamic>{
+      'lineups': lineups.map((l) => l.toMap()).toList(),
+    };
+    if (isSeatRace != null) data['isSeatRace'] = isSeatRace;
+    if (seatRaceConfig != null) data['seatRaceConfig'] = seatRaceConfig.toMap();
+    await _sessions(orgId).doc(sessionId).update(data);
+  }
+
   // ════════════════════════════════════════════════════════════
   // RESULTS
   // ════════════════════════════════════════════════════════════
@@ -342,6 +357,31 @@ class WorkoutService {
       snap.docs.first.data() as Map<String, dynamic>,
     );
   }
+
+  Future<List<WorkoutSession>> getUpcomingSessions(
+    String orgId, {
+    String? teamId,
+  }) async {
+    var query = _sessions(orgId)
+        .where(
+          'scheduledDate',
+          isGreaterThanOrEqualTo: DateTime.now().toIso8601String(),
+        )
+        .orderBy('scheduledDate');
+
+    if (teamId != null) {
+      query = query.where('teamId', isEqualTo: teamId);
+    }
+
+    final snap = await query.get();
+    return snap.docs
+        .map(
+          (doc) => WorkoutSession.fromMap(doc.data() as Map<String, dynamic>),
+        )
+        .toList();
+  }
+
+  /// Update a session (used by manage lineups to persist lineup changes).
 
   /// Get all results for a user (personal training log)
   Stream<List<WorkoutResult>> getUserResults(String orgId, String userId) {

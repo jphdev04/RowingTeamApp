@@ -20,13 +20,20 @@ class VariableInterval {
   final int? distance; // meters (if ergFormat = distance)
   final int? time; // seconds (if ergFormat = time)
   final int restSeconds;
+  final int? strokeRateCap; // spm — null means no cap
 
-  VariableInterval({this.distance, this.time, required this.restSeconds});
+  VariableInterval({
+    this.distance,
+    this.time,
+    required this.restSeconds,
+    this.strokeRateCap,
+  });
 
   Map<String, dynamic> toMap() => {
     if (distance != null) 'distance': distance,
     if (time != null) 'time': time,
     'restSeconds': restSeconds,
+    if (strokeRateCap != null) 'strokeRateCap': strokeRateCap,
   };
 
   factory VariableInterval.fromMap(Map<String, dynamic> map) =>
@@ -34,6 +41,7 @@ class VariableInterval {
         distance: map['distance'],
         time: map['time'],
         restSeconds: map['restSeconds'] ?? 0,
+        strokeRateCap: map['strokeRateCap'],
       );
 }
 
@@ -42,12 +50,14 @@ class WaterPiece {
   final int? distance; // meters
   final int? time; // seconds
   final int? restSeconds;
+  final int? strokeRateCap; // spm — null means no cap
 
   WaterPiece({
     required this.pieceNumber,
     this.distance,
     this.time,
     this.restSeconds,
+    this.strokeRateCap,
   });
 
   Map<String, dynamic> toMap() => {
@@ -55,6 +65,7 @@ class WaterPiece {
     if (distance != null) 'distance': distance,
     if (time != null) 'time': time,
     if (restSeconds != null) 'restSeconds': restSeconds,
+    if (strokeRateCap != null) 'strokeRateCap': strokeRateCap,
   };
 
   factory WaterPiece.fromMap(Map<String, dynamic> map) => WaterPiece(
@@ -62,6 +73,7 @@ class WaterPiece {
     distance: map['distance'],
     time: map['time'],
     restSeconds: map['restSeconds'],
+    strokeRateCap: map['strokeRateCap'],
   );
 }
 
@@ -69,7 +81,7 @@ class LiftExercise {
   final String name;
   final int sets;
   final int reps;
-  final double? weight; // prescribed target (optional)
+  final double? weight;
   final String? notes;
 
   LiftExercise({
@@ -99,7 +111,7 @@ class LiftExercise {
 
 class CircuitExercise {
   final String name;
-  final int? reps; // for reps format
+  final int? reps;
   final String? notes;
 
   CircuitExercise({required this.name, this.reps, this.notes});
@@ -144,6 +156,14 @@ class WorkoutTemplate {
   final int? restSeconds;
   final List<VariableInterval>? variableIntervals;
 
+  // Stroke rate cap (spm) — used by single piece & standard intervals.
+  // For standard intervals this is a per-interval list (length == intervalCount).
+  // For single piece it's a single-element list or just [0] index.
+  // For variable intervals, the cap lives on each VariableInterval.
+  final int? strokeRateCap; // single piece cap
+  final List<int?>?
+  intervalStrokeRateCaps; // per-interval caps for standard intervals
+
   // Water
   final WaterFormat? waterFormat;
   final String? waterDescription;
@@ -186,6 +206,8 @@ class WorkoutTemplate {
     this.intervalTime,
     this.restSeconds,
     this.variableIntervals,
+    this.strokeRateCap,
+    this.intervalStrokeRateCaps,
     this.waterFormat,
     this.waterDescription,
     this.waterPieceCount,
@@ -225,6 +247,9 @@ class WorkoutTemplate {
       if (restSeconds != null) 'restSeconds': restSeconds,
       if (variableIntervals != null)
         'variableIntervals': variableIntervals!.map((v) => v.toMap()).toList(),
+      if (strokeRateCap != null) 'strokeRateCap': strokeRateCap,
+      if (intervalStrokeRateCaps != null)
+        'intervalStrokeRateCaps': intervalStrokeRateCaps,
       // Water
       if (waterFormat != null) 'waterFormat': waterFormat!.name,
       if (waterDescription != null) 'waterDescription': waterDescription,
@@ -288,6 +313,12 @@ class WorkoutTemplate {
       variableIntervals: map['variableIntervals'] != null
           ? (map['variableIntervals'] as List)
                 .map((v) => VariableInterval.fromMap(v))
+                .toList()
+          : null,
+      strokeRateCap: map['strokeRateCap'],
+      intervalStrokeRateCaps: map['intervalStrokeRateCaps'] != null
+          ? (map['intervalStrokeRateCaps'] as List)
+                .map((e) => e as int?)
                 .toList()
           : null,
       // Water
@@ -360,6 +391,8 @@ class WorkoutTemplate {
     int? intervalTime,
     int? restSeconds,
     List<VariableInterval>? variableIntervals,
+    int? strokeRateCap,
+    List<int?>? intervalStrokeRateCaps,
     WaterFormat? waterFormat,
     String? waterDescription,
     int? waterPieceCount,
@@ -395,6 +428,9 @@ class WorkoutTemplate {
       intervalTime: intervalTime ?? this.intervalTime,
       restSeconds: restSeconds ?? this.restSeconds,
       variableIntervals: variableIntervals ?? this.variableIntervals,
+      strokeRateCap: strokeRateCap ?? this.strokeRateCap,
+      intervalStrokeRateCaps:
+          intervalStrokeRateCaps ?? this.intervalStrokeRateCaps,
       waterFormat: waterFormat ?? this.waterFormat,
       waterDescription: waterDescription ?? this.waterDescription,
       waterPieceCount: waterPieceCount ?? this.waterPieceCount,

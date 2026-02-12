@@ -488,6 +488,7 @@ class _OrganizationSettingsScreenState
                               final result = await Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (context) => EditProfileScreen(
+                                    organization: widget.organization,
                                     user: widget.user,
                                     membership: widget.membership,
                                     team: null,

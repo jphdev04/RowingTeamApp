@@ -7,6 +7,7 @@ import '../models/workout_template.dart';
 import '../widgets/team_header.dart';
 import 'create_erg_workout_screen.dart';
 import 'browse_templates_screen.dart';
+import 'create_water_workout_screen.dart';
 
 class CreateWorkoutScreen extends StatelessWidget {
   final AppUser user;
@@ -150,6 +151,17 @@ class CreateWorkoutScreen extends StatelessWidget {
         );
         break;
       case WorkoutCategory.water:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => CreateWaterWorkoutScreen(
+              user: user,
+              currentMembership: currentMembership,
+              organization: organization,
+              team: team,
+            ),
+          ),
+        );
+        break;
       case WorkoutCategory.race:
       case WorkoutCategory.lift:
       case WorkoutCategory.circuit:

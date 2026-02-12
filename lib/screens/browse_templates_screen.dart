@@ -8,6 +8,7 @@ import '../models/workout_template.dart';
 import '../services/workout_service.dart';
 import '../widgets/team_header.dart';
 import 'create_erg_workout_screen.dart';
+import 'create_water_workout_screen.dart';
 
 /// Browse Templates Screen — shown before the create form so coaches
 /// can pick an existing template to pre-fill the form, or start fresh.
@@ -566,30 +567,43 @@ class _BrowseTemplatesScreenState extends State<BrowseTemplatesScreen> {
   // ═══════════════════════════════════════════════════════════
 
   void _navigateToCreate(WorkoutTemplate? fromTemplate) {
-    // Currently only erg is built; others will follow the same pattern
-    if (widget.category == WorkoutCategory.erg) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CreateErgWorkoutScreen(
-            user: widget.user,
-            currentMembership: widget.currentMembership,
-            organization: widget.organization,
-            team: widget.team,
-            fromTemplate: fromTemplate,
-            preLinkedEvent: widget.preLinkedEvent,
-          ),
-        ),
-      ).then((result) {
-        // If workout was created, pop back through to the workouts tab
-        if (result == true && mounted) {
-          Navigator.pop(context, true);
-        }
-      });
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$_categoryLabel workouts coming soon!')),
-      );
+    Widget screen;
+
+    switch (widget.category) {
+      case WorkoutCategory.erg:
+        screen = CreateErgWorkoutScreen(
+          user: widget.user,
+          currentMembership: widget.currentMembership,
+          organization: widget.organization,
+          team: widget.team,
+          fromTemplate: fromTemplate,
+          preLinkedEvent: widget.preLinkedEvent,
+        );
+        break;
+      case WorkoutCategory.water:
+        screen = CreateWaterWorkoutScreen(
+          user: widget.user,
+          currentMembership: widget.currentMembership,
+          organization: widget.organization,
+          team: widget.team,
+          fromTemplate: fromTemplate,
+          preLinkedEvent: widget.preLinkedEvent,
+        );
+        break;
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$_categoryLabel workouts coming soon!')),
+        );
+        return;
     }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => screen),
+    ).then((result) {
+      if (result == true && mounted) {
+        Navigator.pop(context, true);
+      }
+    });
   }
 }

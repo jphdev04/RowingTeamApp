@@ -7,6 +7,7 @@ import '../models/membership.dart';
 import '../models/organization.dart';
 import '../models/team.dart';
 import '../widgets/team_header.dart';
+import '../utils/boathouse_styles.dart';
 import 'edit_profile_screen.dart';
 import 'team_settings_screen.dart';
 import 'organization_settings_screen.dart';
@@ -31,11 +32,22 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  Color get primaryColor =>
+      widget.team?.primaryColorObj ??
+      widget.organization?.primaryColorObj ??
+      Colors.blue;
+
+  Color get _headerTextColor {
+    return primaryColor.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+  }
+
+  bool get _isAdmin => widget.membership.role == MembershipRole.admin;
+  bool get _isCoach =>
+      widget.membership.role == MembershipRole.coach || _isAdmin;
+
   @override
   Widget build(BuildContext context) {
     final authService = AuthService();
-    final isAdmin = widget.membership.role == MembershipRole.admin;
-    final isCoach = widget.membership.role == MembershipRole.coach || isAdmin;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -56,48 +68,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 16),
               children: [
-                // User profile card
+                // Profile card
                 _buildProfileCard(),
-
                 const SizedBox(height: 16),
 
-                // Team Management section (for coaches/admins with teams)
-                if (isCoach && widget.team != null) ...[
+                // Team Management (coaches/admins with a team)
+                if (_isCoach && widget.team != null) ...[
                   _buildSectionHeader('Team Management'),
-                  Card(
+                  BoathouseStyles.card(
                     margin: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      children: [
-                        ListTile(
-                          leading: const Icon(Icons.palette),
-                          title: const Text('Team Settings'),
-                          subtitle: const Text('Change team name and colors'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () async {
-                            final result = await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => TeamSettingsScreen(
-                                  team: widget.team!,
-                                  organization: widget.organization,
-                                ),
-                              ),
-                            );
-                            if (result == true && mounted) {
-                              setState(() {});
-                            }
-                          },
-                        ),
-                      ],
+                    padding: EdgeInsets.zero,
+                    child: ListTile(
+                      leading: const Icon(Icons.palette),
+                      title: const Text('Team Settings'),
+                      subtitle: const Text('Change team name and colors'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () async {
+                        final result = await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => TeamSettingsScreen(
+                              team: widget.team!,
+                              organization: widget.organization,
+                            ),
+                          ),
+                        );
+                        if (result == true && mounted) {
+                          setState(() {});
+                        }
+                      },
                     ),
                   ),
                   const SizedBox(height: 16),
                 ],
 
-                // Organization Management (for admins)
-                if (isAdmin && widget.organization != null) ...[
+                // Organization Management (admins only)
+                if (_isAdmin && widget.organization != null) ...[
                   _buildSectionHeader('Organization Management'),
-                  Card(
+                  BoathouseStyles.card(
                     margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: EdgeInsets.zero,
                     child: Column(
                       children: [
                         ListTile(
@@ -175,8 +184,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 // Personal section
                 _buildSectionHeader('Personal'),
-                Card(
+                BoathouseStyles.card(
                   margin: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: EdgeInsets.zero,
                   child: Column(
                     children: [
                       ListTile(
@@ -189,6 +199,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               builder: (context) => EditProfileScreen(
                                 user: widget.user,
                                 membership: widget.membership,
+                                organization: widget.organization,
                                 team: widget.team,
                               ),
                             ),
@@ -243,17 +254,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // Sign Out
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: OutlinedButton.icon(
+                  child: BoathouseStyles.destructiveButton(
+                    label: 'Sign Out',
                     onPressed: () => _showSignOutDialog(context, authService),
-                    icon: const Icon(Icons.logout, color: Colors.red),
-                    label: const Text(
-                      'Sign Out',
-                      style: TextStyle(color: Colors.red),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      side: const BorderSide(color: Colors.red),
-                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -265,24 +268,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Color get _headerTextColor {
-    final luminance =
-        widget.team?.primaryColorObj.computeLuminance() ??
-        widget.organization?.primaryColorObj.computeLuminance() ??
-        0;
-    return luminance > 0.5 ? Colors.black : Colors.white;
-  }
-
   Widget _buildProfileCard() {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Padding(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: BoathouseStyles.card(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
             CircleAvatar(
               radius: 50,
-              backgroundColor: _profileAvatarColor,
+              backgroundColor: primaryColor,
               child: Text(
                 widget.user.name.isNotEmpty
                     ? widget.user.name[0].toUpperCase()
@@ -334,12 +329,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
-  }
-
-  Color get _profileAvatarColor {
-    return widget.team?.primaryColorObj ??
-        widget.organization?.primaryColorObj ??
-        Colors.blue;
   }
 
   Widget _buildSectionHeader(String title) {
